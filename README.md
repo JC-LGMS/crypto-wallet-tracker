@@ -20,6 +20,8 @@ seules des adresses publiques sont enregistrées, aucune clé privée.
 - **Pull-to-refresh** sur l'accueil (tous les portefeuilles + cours + taux + mini-courbes), sur chaque
   fiche de portefeuille (solde + historique) et sur les graphiques (bouton en plus).
 - **Date de dernière synchro** affichée à côté de chaque source.
+- **Solde total partiel** : si un portefeuille n'a pas pu être actualisé, le total reste affiché avec
+  une icône d'avertissement.
 - Menu ⋮ → « Mettre à jour les logos » pour recharger les logos des cryptos.
 - Données conservées hors ligne : une synchro ratée garde les anciennes valeurs et affiche une alerte
   précisant la donnée et la source en cause. Rafraîchissement automatique toutes les 24 h (cours,

@@ -1,11 +1,13 @@
 package com.jclg.cryptowallettracker
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.layout.Arrangement
@@ -38,11 +40,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.ViewModelProvider
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
@@ -66,15 +69,73 @@ import java.util.Date
 import java.util.Locale
 
 class MainActivity : FragmentActivity() {
+
+    private val vm: AppViewModel by lazy { ViewModelProvider(this)[AppViewModel::class.java] }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
-            val vm: AppViewModel = viewModel()
             val state by vm.state.collectAsState()
             AppTheme(state.settings.theme) {
                 App(vm, state)
             }
+        }
+    }
+
+    /** Export JSON : requestCode fixe (les ActivityResultLauncher de Compose provoquaient un crash). */
+    fun launchExport(fileName: String) {
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/json"
+            putExtra(Intent.EXTRA_TITLE, fileName)
+        }
+        startActivityForResult(intent, RC_EXPORT)
+    }
+
+    fun launchImport() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/json", "text/plain"))
+        }
+        startActivityForResult(intent, RC_IMPORT)
+    }
+
+    fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                RC_NOTIFICATIONS,
+            )
+        } else {
+            vm.setNotifyBalanceChange(true)
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (resultCode != RESULT_OK) return
+        val uri = data?.data ?: return
+        when (requestCode) {
+            RC_EXPORT -> vm.exportTo(uri)
+            RC_IMPORT -> vm.importFrom(uri)
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == RC_NOTIFICATIONS) {
+            vm.setNotifyBalanceChange(grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED)
         }
     }
 
@@ -101,6 +162,12 @@ class MainActivity : FragmentActivity() {
             .build()
         runCatching { prompt.authenticate(info) }
     }
+
+    private companion object {
+        const val RC_EXPORT = 1001
+        const val RC_IMPORT = 1002
+        const val RC_NOTIFICATIONS = 1003
+    }
 }
 
 @Composable
@@ -124,14 +191,6 @@ private fun App(vm: AppViewModel, state: UiState) {
             vm.clearMessage()
         }
     }
-
-    val exportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/json"),
-    ) { uri -> uri?.let(vm::exportTo) }
-
-    val importLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument(),
-    ) { uri -> uri?.let(vm::importFrom) }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -193,9 +252,9 @@ private fun App(vm: AppViewModel, state: UiState) {
                 onExportFile = {
                     val name = "cryptowallet-v${BuildConfig.VERSION_NAME}-" +
                         SimpleDateFormat("yyyyMMdd", Locale.FRANCE).format(Date()) + ".json"
-                    exportLauncher.launch(name)
+                    activity?.launchExport(name)
                 },
-                onImportFile = { importLauncher.launch(arrayOf("application/json", "text/plain")) },
+                onImportFile = { activity?.launchImport() },
                 onScanQr = ::scanQr,
                 onVersionClick = { changelogOpen = true },
                 onPickCurrency = { currencyOpen = true },
@@ -213,7 +272,10 @@ private fun App(vm: AppViewModel, state: UiState) {
                 onAbout = { route = "about" },
                 onVersionClick = { changelogOpen = true },
                 onBackgroundSync = vm::setBackgroundSyncHours,
-                onNotify = vm::setNotifyBalanceChange,
+                onNotify = { enabled ->
+                    if (enabled) activity?.requestNotificationPermission()
+                    else vm.setNotifyBalanceChange(false)
+                },
                 onLock = { enabled ->
                     vm.setLockEnabled(enabled)
                     if (enabled) unlocked = false

@@ -26,3 +26,4 @@
 
 # ZXing
 -dontwarn com.google.zxing.**
+

@@ -1,8 +1,5 @@
 package com.jclg.cryptowallettracker.ui
 
-import android.Manifest
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -62,9 +59,7 @@ fun SettingsScreen(
 ) {
     var currencyDialog by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
-    val notificationPermission = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { granted -> onNotify(granted) }
+
 
     Scaffold(
         topBar = {
@@ -172,10 +167,7 @@ fun SettingsScreen(
                     title = "Notification de changement de solde",
                     subtitle = "À chaque synchro en arrière-plan",
                     checked = state.settings.notifyBalanceChange,
-                    onChange = { enabled ->
-                        if (enabled) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        else onNotify(false)
-                    },
+                    onChange = { enabled -> onNotify(enabled) },
                 )
 
                 SectionTitle("Cryptos sur l'accueil")

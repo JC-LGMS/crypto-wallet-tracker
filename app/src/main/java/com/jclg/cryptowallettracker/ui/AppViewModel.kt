@@ -54,19 +54,26 @@ data class UiState(
     fun price(coinId: String): Double? =
         markets[coinId]?.priceUsd?.let { it * rates.rate(settings.currency) }
 
-    fun total(): Double? {
-        if (wallets.isEmpty()) return 0.0
+    /** Somme des portefeuilles disponibles ; `incomplete` si un solde ou un cours manque. */
+    fun total(): TotalSummary {
         var sum = 0.0
+        var incomplete = false
         for (wallet in wallets) {
-            val amount = balances[wallet.id]?.amount ?: return null
-            val price = price(wallet.coinId) ?: return null
-            sum += amount * price
+            val amount = balances[wallet.id]?.amount
+            val price = price(wallet.coinId)
+            if (amount == null || price == null) {
+                incomplete = true
+            } else {
+                sum += amount * price
+            }
         }
-        return sum
+        return TotalSummary(sum, incomplete)
     }
 
     val loading: Boolean get() = refreshing
 }
+
+data class TotalSummary(val value: Double, val incomplete: Boolean)
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val store = WalletStore(app)

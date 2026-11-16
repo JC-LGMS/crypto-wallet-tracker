@@ -23,6 +23,8 @@
 - Synchro en arrière-plan (6/12/24 h) et notification en cas de changement de solde.
 - Scan d'un QR code à l'ajout d'un portefeuille, icône QR et lien explorateur sur la fiche.
 - Accueil : ajout via le + à côté du titre, solde total plus compact, indicateurs de défilement.
+- Solde total partiel affiché avec une icône d'avertissement si un portefeuille manque.
+- Correction du crash à l'export/import de fichier et à la demande de permission de notification.
 - L'accueil n'affiche que les cryptos cochées dans les réglages.
 - Page À propos.
 - APK de release signé : `CryptoWalletTracker-v1.1-release.apk`.

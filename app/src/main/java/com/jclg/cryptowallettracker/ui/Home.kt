@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -157,8 +158,10 @@ fun HomeScreen(
                     }
 
                     item {
+                        val total = state.total()
                         TotalCard(
-                            total = state.total(),
+                            total = total.value,
+                            incomplete = total.incomplete,
                             currency = state.settings.currency,
                             hidden = hidden,
                             onToggleHidden = onToggleHidden,
@@ -258,7 +261,8 @@ fun HomeScreen(
 
 @Composable
 private fun TotalCard(
-    total: Double?,
+    total: Double,
+    incomplete: Boolean,
     currency: Currency,
     hidden: Boolean,
     onToggleHidden: () -> Unit,
@@ -294,14 +298,29 @@ private fun TotalCard(
                     fontWeight = FontWeight.Bold,
                 )
             }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    if (hidden) "••••" else total.money(currency),
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = HeroInk,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                if (incomplete) {
+                    Spacer(Modifier.width(8.dp))
+                    Icon(
+                        Icons.Default.Warning,
+                        contentDescription = "Total partiel : un portefeuille n'a pas pu être actualisé",
+                        tint = HeroInk.copy(alpha = 0.85f),
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
             Text(
-                if (hidden) "••••" else (total?.money(currency) ?: "…"),
-                style = MaterialTheme.typography.headlineMedium,
-                color = HeroInk,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                "Touchez pour changer de devise",
+                if (incomplete) {
+                    "Total partiel — un portefeuille est en attente"
+                } else {
+                    "Touchez pour changer de devise"
+                },
                 style = MaterialTheme.typography.labelSmall,
                 color = HeroInk.copy(alpha = 0.65f),
             )

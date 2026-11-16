@@ -121,6 +121,12 @@ Un seul module `:app`, aucune DI, aucune lib de navigation : `MainActivity.kt` g
 
 ## À ne pas casser
 
+- Export/import de fichiers et permission de notification : **ne pas utiliser
+  `rememberLauncherForActivityResult`** (crash release `Can only use lower 16 bits for requestCode`
+  constaté avec R8). `MainActivity` utilise `startActivityForResult` avec des codes fixes
+  (`RC_EXPORT=1001`, `RC_IMPORT=1002`, `RC_NOTIFICATIONS=1003`).
+
+
 - Format d'échange export/import = `WalletPayload` (`c`, `a`, `v`, `n`, `m`, `s`) dans `data/Models.kt`.
   Le QR encode un seul payload. `c` accepte encore les anciens noms `ETHEREUM`/`DECRED`/`MONERO`.
 - Version : `val appVersionName` dans `app/build.gradle.kts` (affichée `v1.1`, centrée sur l'accueil)
