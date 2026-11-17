@@ -273,8 +273,20 @@ fun DetailScreen(
                         history.txs.isEmpty() -> item {
                             Text("Aucune transaction.", style = MaterialTheme.typography.bodyMedium)
                         }
-                        else -> items(history.txs, key = { it.id }) { tx ->
-                            TxRow(tx) { uriHandler.openUri(tx.explorerUrl) }
+                        else -> {
+                            items(history.txs, key = { it.id }) { tx ->
+                                TxRow(tx) { uriHandler.openUri(tx.explorerUrl) }
+                            }
+                            if (history.hasMore) {
+                                item {
+                                    Text(
+                                        "Seules les ${history.txs.size} transactions les plus récentes sont affichées.",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 2.dp),
+                                    )
+                                }
+                            }
                         }
                     }
                 }

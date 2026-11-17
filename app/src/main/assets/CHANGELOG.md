@@ -1,5 +1,15 @@
 # Journal des modifications
 
+## 1.2 — 2026-11-17
+
+- Fiche portefeuille : message quand la source contient plus de transactions que celles affichées.
+- Ethereum : sources etherscan.io et beaconcha.in (clé API gratuite dans Réglages › Clés API).
+- Export protégé par un code optionnel (fichier chiffré AES-GCM), code demandé à l'import.
+- Verrouillage par PIN ou schéma propre à l'application, à la place de l'empreinte et du code du téléphone.
+- Liste des cryptos de l'accueil triée par ordre alphabétique.
+- Réglages : « À propos » remonté en haut.
+- APK de release signé : `CryptoWalletTracker-v1.2-release.apk`.
+
 ## 1.1 — 2026-11-16
 
 - Icône dorée et nouvelle identité visuelle (fonds chauds, cartes ocre, mode sombre).

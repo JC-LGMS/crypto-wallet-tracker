@@ -69,10 +69,12 @@ Un seul module `:app`, aucune DI, aucune lib de navigation : `MainActivity.kt` g
   portefeuille, graphique) ; le pull-to-refresh est disponible sur l'accueil, la fiche et le graphique.
 - Le top 100 vient de CoinGecko à chaque synchro des cours : `UiState.catalog` est la seule liste à
   utiliser pour les marchés et les réglages (ne pas coder 100 cryptos en dur).
-- Fonctions transverses : `Settings.hideBalances` (icône œil sur le total), `Settings.lockEnabled`
-  (BiometricPrompt + code du téléphone, `MainActivity` hérite de `FragmentActivity`),
-  `Settings.backgroundSyncHours` + `Settings.notifyBalanceChange` (WorkManager), lien explorateur via
-  `Coin.explorerUrl(adresse)`.
+- Fonctions transverses : `Settings.hideBalances` (icône œil sur le total), `Settings.lockType`
+  (`PIN` ou `PATTERN` propre à l'application, haché en PBKDF2 dans `LockCode` ; le code du téléphone
+  et l'empreinte ne sont plus utilisés), `Settings.backgroundSyncHours` +
+  `Settings.notifyBalanceChange` (WorkManager), lien explorateur via `Coin.explorerUrl(adresse)`.
+- L'historique est plafonné (20 tx Blockscout/Bitcoin, 5 Decred) ; `HistoryState.hasMore` affiche
+  « Seules les N transactions les plus récentes sont affichées » quand la source en contient plus.
 - L'ajout d'un portefeuille propose le scan d'un QR (`WalletCodec`), et la fiche a une icône QR à côté
   de l'adresse.
 - Les graphiques viennent de CoinGecko (≤ 365 j), Binance (2 ans/5 ans/max), Kraken en secours
@@ -101,7 +103,7 @@ Un seul module `:app`, aucune DI, aucune lib de navigation : `MainActivity.kt` g
 - Binance `ticker/price` renvoie toutes les paires : un appel `symbols=[...]` échoue en bloc si un
   symbole est invalide.
 
-## Sources de données (sans clé)
+## Sources de données (clés facultatives)
 
 - Cours : CoinGecko `coins/markets` (logos + mini-courbes inclus) ; `simple/price` pour les taux.
   Alternative Binance `ticker/price`.
@@ -110,6 +112,9 @@ Un seul module `:app`, aucune DI, aucune lib de navigation : `MainActivity.kt` g
 - Soldes : RPC Ethereum/BSC/Avalanche (dont `balanceOf` ERC-20), Blockscout, mempool.space,
   Blockstream, Ripple `s1.ripple.com`, Solana RPC, dogechain.info, Koios, TronGrid, Horizon,
   litecoinspace.org (API mempool), toncenter, dcrdata, LWS Monero.
+- Ethereum : `etherscan.io` (API V2, `chainid=1`) et `beaconcha.in` (API V1, execution address)
+  **exigent une clé gratuite**, saisie dans Réglages › Clés API (`Settings.etherscanKey`,
+  `Settings.beaconchainKey`). Sans clé, la source échoue avec un message explicite.
 - Monero exige la clé d'affichage + un enregistrement préalable sur
   `https://lightwallet.monero.fail/register` (le LWS répond 500 sinon). Aucun historique possible.
 - Crypto sans source de solde (cours seulement) : **SUI, DOT, BCH**. Ne pas inventer de solde :
@@ -129,7 +134,9 @@ Un seul module `:app`, aucune DI, aucune lib de navigation : `MainActivity.kt` g
 
 - Format d'échange export/import = `WalletPayload` (`c`, `a`, `v`, `n`, `m`, `s`) dans `data/Models.kt`.
   Le QR encode un seul payload. `c` accepte encore les anciens noms `ETHEREUM`/`DECRED`/`MONERO`.
-- Version : `val appVersionName` dans `app/build.gradle.kts` (affichée `v1.1`, centrée sur l'accueil)
+  Un export fichier avec code est chiffré en AES-GCM et préfixé `CWT1:` (`ExportCodec`) : l'import
+  détecte le préfixe et demande le code. Le QR n'est jamais chiffré.
+- Version : `val appVersionName` dans `app/build.gradle.kts` (affichée `v1.2`, centrée sur l'accueil)
   **et** entrée dans `app/src/main/assets/CHANGELOG.md` (les `#` Markdown sont retirés à l'affichage).
 - `versionCode` à incrémenter en même temps.
 - Montants en `Double` à l'affichage ; conversions wei/atoms/drops via `BigDecimal`.

@@ -8,7 +8,7 @@ seules des adresses publiques sont enregistrées, aucune clé privée.
 - **Top 100 des cryptos** pour les cours et les graphiques ; **22 cryptos** ont en plus une source de
   solde (Ethereum, Bitcoin, BNB, Solana, XRP, Cardano, TRON, Stellar, Litecoin, TON, Monero, Decred…).
 - Plusieurs portefeuilles par crypto, avec nom et commentaire ; les adresses restent sur la fiche.
-- **Verrouillage** de l'application par empreinte digitale ou code du téléphone.
+- **Verrouillage** de l'application par PIN ou schéma dessiné, propre à l'application.
 - **Soldes masquables** d'un appui sur l'icône œil (total, portefeuilles, fiche).
 - **Synchro en arrière-plan** toutes les 6, 12 ou 24 h (même application fermée) et **notification** en
   cas de changement de solde.
@@ -28,16 +28,19 @@ seules des adresses publiques sont enregistrées, aucune clé privée.
   soldes, historique, graphiques longs) ou toutes les heures (graphiques courts), uniquement quand
   l'application est ouverte.
 - Choix de la **source de données** par portefeuille (RPC, explorateur…), avec ce qui est disponible
-  (solde seul ou solde + transactions) indiqué à l'ajout et modifiable ensuite.
+  (solde seul ou solde + transactions) indiqué à l'ajout et modifiable ensuite. Ethereum ajoute
+  etherscan.io et beaconcha.in, qui demandent une clé API gratuite (Réglages › Clés API).
 - Cours : CoinGecko par défaut, Binance en alternative. Graphiques : CoinGecko jusqu'à 1 an,
   Binance (ou Kraken) pour 2 ans, 5 ans et max.
 - Graphiques interactifs (1 h, 24 h, 7 j, 30 j, 1 an, 2 ans, 5 ans, max) : axes gradués, appui ou
   glissement pour lire le cours d'un point, source affichée sous la courbe, période mémorisée par
   crypto. L'accueil n'affiche que les cryptos cochées dans les réglages.
 - Historique des transactions pour Ethereum (source Blockscout), Bitcoin et Decred, avec lien vers
-  l'explorateur.
-- Export / import des portefeuilles par fichier JSON et par QR code.
-- Page À propos, changelog, version affichée `v1.1`.
+  l'explorateur et message quand seules les transactions les plus récentes sont affichées.
+- Export / import des portefeuilles par fichier JSON et par QR code. Un **code optionnel** chiffre
+  l'export (AES-GCM) et est demandé à l'import.
+- Liste des cryptos de l'accueil triée par ordre alphabétique.
+- Page À propos (en haut des réglages), changelog, version affichée `v1.2`.
 
 ## Installation
 

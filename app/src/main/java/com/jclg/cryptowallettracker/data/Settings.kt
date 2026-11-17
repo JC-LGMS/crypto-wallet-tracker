@@ -6,6 +6,13 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 @Serializable
+enum class LockType(val label: String) {
+    NONE("Aucun"),
+    PIN("PIN"),
+    PATTERN("Schéma"),
+}
+
+@Serializable
 data class Settings(
     val theme: ThemeMode = ThemeMode.SYSTEM,
     val currency: Currency = Currency.EUR,
@@ -17,9 +24,16 @@ data class Settings(
     /** Synchro de fond toutes les N heures (0 = désactivée). */
     val backgroundSyncHours: Int = 0,
     val notifyBalanceChange: Boolean = false,
-    val lockEnabled: Boolean = false,
+    /** Code propre à l'application (PIN ou schéma), stocké salé et haché. */
+    val lockType: LockType = LockType.NONE,
+    val lockSalt: String = "",
+    val lockCodeHash: String = "",
+    val etherscanKey: String = "",
+    val beaconchainKey: String = "",
     val hideBalances: Boolean = false,
-)
+) {
+    val lockEnabled: Boolean get() = lockType != LockType.NONE && lockCodeHash.isNotBlank()
+}
 
 class SettingsStore(context: Context) {
     private val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)

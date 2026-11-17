@@ -36,6 +36,8 @@ enum class PriceSource(val label: String, val detail: String) {
 enum class SourceId(val label: String, val history: Boolean) {
     EVM_RPC("RPC public Ethereum", false),
     BLOCKSCOUT("Blockscout", true),
+    ETHERSCAN("etherscan.io", false),
+    BEACONCHAIN("beaconcha.in", false),
     MEMPOOL("mempool.space", true),
     BLOCKSTREAM("Blockstream", true),
     ERC20_RPC("RPC Ethereum (jeton ERC-20)", false),
@@ -92,7 +94,7 @@ object Coins {
         ),
         Coin(
             "ethereum", "ETH", "Ethereum", 18, 0xFF627EEA, "ETHUSDT",
-            listOf(SourceId.EVM_RPC, SourceId.BLOCKSCOUT),
+            listOf(SourceId.EVM_RPC, SourceId.BLOCKSCOUT, SourceId.ETHERSCAN, SourceId.BEACONCHAIN),
             evm, "0x… (40 caractères hex)",
             rpc = "https://ethereum-rpc.publicnode.com",
             explorerAddress = "https://eth.blockscout.com/address/{addr}",

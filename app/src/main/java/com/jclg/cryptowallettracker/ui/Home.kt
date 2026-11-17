@@ -76,7 +76,7 @@ fun HomeScreen(
     onOpenWallet: (String) -> Unit,
     onOpenPrice: (String) -> Unit,
     onOpenSettings: () -> Unit,
-    onExportFile: () -> Unit,
+    onExportFile: (String) -> Unit,
     onImportFile: () -> Unit,
     onScanQr: () -> Unit,
     onVersionClick: () -> Unit,
@@ -85,9 +85,12 @@ fun HomeScreen(
     onToggleHidden: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    var exportDialog by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val hidden = state.settings.hideBalances
-    val visibleCoins = state.catalog.filter { it.id in state.settings.homeCharts }
+    val visibleCoins = state.catalog
+        .filter { it.id in state.settings.homeCharts }
+        .sortedBy { it.name }
 
     Scaffold { padding ->
         Box(
@@ -143,7 +146,7 @@ fun HomeScreen(
                                     )
                                     DropdownMenuItem(
                                         text = { Text("Exporter en fichier") },
-                                        onClick = { menuOpen = false; onExportFile() },
+                                        onClick = { menuOpen = false; exportDialog = true },
                                         enabled = state.wallets.isNotEmpty(),
                                     )
                                 }
@@ -256,6 +259,16 @@ fun HomeScreen(
                     .padding(end = 2.dp),
             )
         }
+    }
+
+    if (exportDialog) {
+        ExportCodeDialog(
+            onConfirm = { code ->
+                exportDialog = false
+                onExportFile(code)
+            },
+            onDismiss = { exportDialog = false },
+        )
     }
 }
 

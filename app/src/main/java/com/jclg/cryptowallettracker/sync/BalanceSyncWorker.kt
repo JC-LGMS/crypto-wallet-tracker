@@ -48,7 +48,9 @@ class BalanceSyncWorker(
         runCatching { Markets.snapshot(settings.priceSource, force = true) }
 
         wallets.forEach { wallet ->
-            val amount = runCatching { Balances.balance(wallet) }.getOrNull()
+            val amount = runCatching {
+                Balances.balance(wallet, settings.etherscanKey, settings.beaconchainKey)
+            }.getOrNull()
             if (amount == null) return@forEach
             balances[wallet.id] = BalanceEntry(amount, System.currentTimeMillis())
             val old = previous.balances[wallet.id]

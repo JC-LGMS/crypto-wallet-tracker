@@ -5,20 +5,16 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.biometric.BiometricManager
-import androidx.biometric.BiometricPrompt
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -29,7 +25,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -39,10 +34,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModelProvider
@@ -50,9 +43,9 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.jclg.cryptowallettracker.data.Coins
+import com.jclg.cryptowallettracker.data.LockCode
 import com.jclg.cryptowallettracker.data.Wallet
 import com.jclg.cryptowallettracker.ui.AboutScreen
-import com.jclg.cryptowallettracker.ui.AppLogo
 import com.jclg.cryptowallettracker.ui.AppTheme
 import com.jclg.cryptowallettracker.ui.AppViewModel
 import com.jclg.cryptowallettracker.ui.ChangelogDialog
@@ -60,6 +53,8 @@ import com.jclg.cryptowallettracker.ui.CurrencyDialog
 import com.jclg.cryptowallettracker.ui.DetailScreen
 import com.jclg.cryptowallettracker.ui.EditScreen
 import com.jclg.cryptowallettracker.ui.HomeScreen
+import com.jclg.cryptowallettracker.ui.ImportCodeDialog
+import com.jclg.cryptowallettracker.ui.LockScreen
 import com.jclg.cryptowallettracker.ui.PriceScreen
 import com.jclg.cryptowallettracker.ui.SettingsScreen
 import com.jclg.cryptowallettracker.ui.UiState
@@ -68,9 +63,10 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-class MainActivity : FragmentActivity() {
+class MainActivity : ComponentActivity() {
 
     private val vm: AppViewModel by lazy { ViewModelProvider(this)[AppViewModel::class.java] }
+    private var pendingExportCode = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -84,7 +80,8 @@ class MainActivity : FragmentActivity() {
     }
 
     /** Export JSON : requestCode fixe (les ActivityResultLauncher de Compose provoquaient un crash). */
-    fun launchExport(fileName: String) {
+    fun launchExport(fileName: String, code: String) {
+        pendingExportCode = code
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "application/json"
@@ -120,47 +117,29 @@ class MainActivity : FragmentActivity() {
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (resultCode != RESULT_OK) return
+        if (resultCode != RESULT_OK) {
+            if (requestCode == RC_EXPORT) pendingExportCode = ""
+            return
+        }
         val uri = data?.data ?: return
         when (requestCode) {
-            RC_EXPORT -> vm.exportTo(uri)
+            RC_EXPORT -> {
+                vm.exportTo(uri, pendingExportCode)
+                pendingExportCode = ""
+            }
             RC_IMPORT -> vm.importFrom(uri)
         }
     }
 
     override fun onRequestPermissionsResult(
         requestCode: Int,
-        permissions: Array<out String>,
+        permissions: Array<String>,
         grantResults: IntArray,
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == RC_NOTIFICATIONS) {
             vm.setNotifyBalanceChange(grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED)
         }
-    }
-
-    fun promptUnlock(onSuccess: () -> Unit) {
-        val allowed = BiometricManager.Authenticators.BIOMETRIC_WEAK or
-            BiometricManager.Authenticators.DEVICE_CREDENTIAL
-        if (BiometricManager.from(this).canAuthenticate(allowed) != BiometricManager.BIOMETRIC_SUCCESS) {
-            // Aucun verrou configuré sur le téléphone : ne pas bloquer l'accès.
-            onSuccess()
-            return
-        }
-        val prompt = BiometricPrompt(
-            this,
-            ContextCompat.getMainExecutor(this),
-            object : BiometricPrompt.AuthenticationCallback() {
-                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                    onSuccess()
-                }
-            },
-        )
-        val info = BiometricPrompt.PromptInfo.Builder()
-            .setTitle("Déverrouiller Crypto Wallet Tracker")
-            .setAllowedAuthenticators(allowed)
-            .build()
-        runCatching { prompt.authenticate(info) }
     }
 
     private companion object {
@@ -182,7 +161,6 @@ private fun App(vm: AppViewModel, state: UiState) {
     var qrWallet by remember { mutableStateOf<Wallet?>(null) }
 
     var unlocked by rememberSaveable { mutableStateOf(!state.settings.lockEnabled) }
-    var lockTick by remember { mutableIntStateOf(0) }
     val lockEnabled by rememberUpdatedState(state.settings.lockEnabled)
 
     LaunchedEffect(state.message) {
@@ -196,22 +174,13 @@ private fun App(vm: AppViewModel, state: UiState) {
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_START -> {
-                    vm.sync(force = false)
-                    lockTick++
-                }
+                Lifecycle.Event.ON_START -> vm.sync(force = false)
                 Lifecycle.Event.ON_STOP -> if (lockEnabled) unlocked = false
                 else -> Unit
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
-    LaunchedEffect(lockTick, state.settings.lockEnabled) {
-        if (state.settings.lockEnabled && !unlocked) {
-            activity?.promptUnlock { unlocked = true }
-        }
     }
 
     fun scanQr() {
@@ -236,7 +205,13 @@ private fun App(vm: AppViewModel, state: UiState) {
     }
 
     if (state.settings.lockEnabled && !unlocked) {
-        LockScreen(onUnlock = { activity?.promptUnlock { unlocked = true } })
+        LockScreen(
+            type = state.settings.lockType,
+            verify = { code ->
+                LockCode.verify(code, state.settings.lockSalt, state.settings.lockCodeHash)
+            },
+            onUnlocked = { unlocked = true },
+        )
         return
     }
 
@@ -249,10 +224,10 @@ private fun App(vm: AppViewModel, state: UiState) {
                 onOpenWallet = { route = "wallet/$it" },
                 onOpenPrice = { route = "price/$it" },
                 onOpenSettings = { route = "settings" },
-                onExportFile = {
+                onExportFile = { code ->
                     val name = "cryptowallet-v${BuildConfig.VERSION_NAME}-" +
                         SimpleDateFormat("yyyyMMdd", Locale.FRANCE).format(Date()) + ".json"
-                    activity?.launchExport(name)
+                    activity?.launchExport(name, code)
                 },
                 onImportFile = { activity?.launchImport() },
                 onScanQr = ::scanQr,
@@ -276,10 +251,12 @@ private fun App(vm: AppViewModel, state: UiState) {
                     if (enabled) activity?.requestNotificationPermission()
                     else vm.setNotifyBalanceChange(false)
                 },
-                onLock = { enabled ->
-                    vm.setLockEnabled(enabled)
-                    if (enabled) unlocked = false
+                onLock = { type, code ->
+                    vm.setLock(type, code)
+                    unlocked = true
                 },
+                onEtherscanKey = vm::setEtherscanKey,
+                onBeaconchainKey = vm::setBeaconchainKey,
             )
 
             route == "about" -> AboutScreen(onBack = { route = "settings" })
@@ -368,6 +345,14 @@ private fun App(vm: AppViewModel, state: UiState) {
         )
     }
 
+    if (state.importLocked) {
+        ImportCodeDialog(
+            error = state.importError,
+            onConfirm = vm::importEncrypted,
+            onDismiss = vm::cancelImportCode,
+        )
+    }
+
     if (state.syncErrors.isNotEmpty()) {
         AlertDialog(
             onDismissRequest = vm::clearSyncErrors,
@@ -388,29 +373,5 @@ private fun App(vm: AppViewModel, state: UiState) {
                 TextButton(onClick = vm::clearSyncErrors) { Text("Fermer") }
             },
         )
-    }
-}
-
-@Composable
-private fun LockScreen(onUnlock: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(32.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            AppLogo(72.dp)
-            Text("Application verrouillée", style = MaterialTheme.typography.titleLarge)
-            Text(
-                "Déverrouillez avec votre empreinte ou le code du téléphone.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Button(onClick = onUnlock) { Text("Déverrouiller") }
-        }
     }
 }

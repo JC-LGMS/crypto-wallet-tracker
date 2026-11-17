@@ -4,6 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
@@ -19,7 +20,11 @@ object Balances {
     private val json = Json { ignoreUnknownKeys = true }
     private const val ETH_RPC = "https://ethereum-rpc.publicnode.com"
 
-    suspend fun balance(wallet: Wallet): Double = withContext(Dispatchers.IO) {
+    suspend fun balance(
+        wallet: Wallet,
+        etherscanKey: String = "",
+        beaconchainKey: String = "",
+    ): Double = withContext(Dispatchers.IO) {
         val coin = wallet.coin ?: error("crypto inconnue")
         when (val source = wallet.sourceOrFirst ?: error("aucune source de solde pour ${coin.symbol}")) {
             SourceId.EVM_RPC, SourceId.BSC_RPC, SourceId.AVAX_RPC ->
@@ -29,6 +34,8 @@ object Balances {
                 evmBalance(ETH_RPC, wallet.address, coin.contract, coin.decimals)
 
             SourceId.BLOCKSCOUT -> blockscoutBalance(wallet.address)
+            SourceId.ETHERSCAN -> etherscanBalance(wallet.address, etherscanKey)
+            SourceId.BEACONCHAIN -> beaconchainBalance(wallet.address, beaconchainKey)
             SourceId.MEMPOOL -> mempoolBalance("https://mempool.space", wallet.address)
             SourceId.BLOCKSTREAM -> mempoolBalance("https://blockstream.info", wallet.address)
             SourceId.RIPPLE -> rippleBalance(wallet.address)
@@ -47,13 +54,13 @@ object Balances {
         }
     }
 
-    suspend fun history(wallet: Wallet): List<Tx> = withContext(Dispatchers.IO) {
+    suspend fun history(wallet: Wallet): HistoryPage = withContext(Dispatchers.IO) {
         when (wallet.sourceOrFirst) {
             SourceId.BLOCKSCOUT -> blockscoutTxs(wallet.address)
             SourceId.MEMPOOL -> btcTxs("https://mempool.space", wallet.address)
             SourceId.BLOCKSTREAM -> btcTxs("https://blockstream.info", wallet.address)
             SourceId.DCRDATA -> dcrTxs(wallet.address)
-            else -> emptyList()
+            else -> HistoryPage(emptyList())
         }
     }
 
@@ -85,11 +92,40 @@ object Balances {
         return BigDecimal(wei).movePointLeft(18).toDouble()
     }
 
-    private suspend fun blockscoutTxs(address: String): List<Tx> {
+    private suspend fun etherscanBalance(address: String, key: String): Double {
+        require(key.isNotBlank()) { "clé API Etherscan requise (Réglages › Sources de données)" }
+        val root = json.parseToJsonElement(
+            Net.get(
+                "https://api.etherscan.io/v2/api?chainid=1&module=account&action=balance" +
+                    "&address=$address&tag=latest&apikey=$key",
+            ),
+        ).jsonObject
+        val result = root["result"]?.jsonPrimitive?.contentOrNull
+        if (root["status"]?.jsonPrimitive?.contentOrNull != "1") {
+            error(result ?: "réponse Etherscan invalide")
+        }
+        val wei = result?.toBigIntegerOrNull() ?: error("solde Etherscan illisible")
+        return BigDecimal(wei).movePointLeft(18).toDouble()
+    }
+
+    private suspend fun beaconchainBalance(address: String, key: String): Double {
+        require(key.isNotBlank()) { "clé API beaconcha.in requise (Réglages › Sources de données)" }
+        val text = try {
+            Net.get("https://beaconcha.in/api/v1/execution/address/$address?apikey=$key")
+        } catch (e: ApiException) {
+            if (e.code == 401) error("clé API beaconcha.in invalide") else throw e
+        }
+        val root = json.parseToJsonElement(text).jsonObject
+        val ether = root["data"]?.jsonObject?.get("ether")?.jsonPrimitive?.contentOrNull
+            ?: error(root["status"]?.jsonPrimitive?.contentOrNull ?: "réponse beaconcha.in invalide")
+        return ether.toDoubleOrNull() ?: error("solde beaconcha.in illisible")
+    }
+
+    private suspend fun blockscoutTxs(address: String): HistoryPage {
         val root = json.parseToJsonElement(
             Net.get("https://eth.blockscout.com/api/v2/addresses/$address/transactions"),
         ).jsonObject
-        return root["items"]?.jsonArray.orEmpty().take(20).mapNotNull { element ->
+        val txs = root["items"]?.jsonArray.orEmpty().take(20).mapNotNull { element ->
             val o = element.jsonObject
             val hash = o["hash"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
             val from = o["from"]?.jsonObject?.get("hash")?.jsonPrimitive?.contentOrNull
@@ -104,6 +140,8 @@ object Balances {
                 explorerUrl = "https://eth.blockscout.com/tx/$hash",
             )
         }
+        val next = root["next_page_params"]
+        return HistoryPage(txs, hasMore = next != null && next !is JsonNull)
     }
 
     // ---------- Bitcoin / Litecoin ----------
@@ -116,9 +154,13 @@ object Balances {
         return (funded - spent) / 100_000_000.0
     }
 
-    private suspend fun btcTxs(base: String, address: String): List<Tx> {
+    private suspend fun btcTxs(base: String, address: String): HistoryPage {
         val list = json.parseToJsonElement(Net.get("$base/api/address/$address/txs")).jsonArray
-        return list.take(20).mapNotNull { element ->
+        val total = runCatching {
+            json.parseToJsonElement(Net.get("$base/api/address/$address")).jsonObject["chain_stats"]
+                ?.jsonObject?.get("tx_count")?.jsonPrimitive?.intOrNull ?: 0
+        }.getOrDefault(0)
+        val txs = list.take(20).mapNotNull { element ->
             val tx = element.jsonObject
             val txid = tx["txid"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
             val received = tx["vout"]?.jsonArray.orEmpty().sumOf { out ->
@@ -136,8 +178,9 @@ object Balances {
             val net = (received - spent) / 100_000_000.0
             val time = tx["status"]?.jsonObject?.get("block_time")?.jsonPrimitive?.contentOrNull
                 ?.toLongOrNull() ?: 0L
-            Tx(txid, time * 1000, net, "BTC", "https://mempool.space/tx/$txid")
+            Tx(txid, time * 1000, net, "BTC", "$base/tx/$txid")
         }
+        return HistoryPage(txs, hasMore = total > txs.size)
     }
 
     // ---------- Autres chaînes ----------
@@ -226,16 +269,17 @@ object Balances {
         return root["dcr_unspent"]?.jsonPrimitive?.doubleOrNull ?: error("réponse inattendue de dcrdata")
     }
 
-    private suspend fun dcrTxs(address: String): List<Tx> {
+    private suspend fun dcrTxs(address: String): HistoryPage {
         val root = json.parseToJsonElement(
             Net.get("https://dcrdata.decred.org/api/address/$address"),
         ).jsonObject
-        val ids = root["address_transactions"]?.jsonArray.orEmpty()
+        val allIds = root["address_transactions"]?.jsonArray.orEmpty()
             .mapNotNull { it.jsonObject["txid"]?.jsonPrimitive?.contentOrNull }
             .distinct()
-            .take(5)
+        val ids = allIds.take(5)
         val fetcher = TxFetcher()
-        return ids.mapNotNull { id -> runCatching { fetcher.toTx(id, address) }.getOrNull() }
+        val txs = ids.mapNotNull { id -> runCatching { fetcher.toTx(id, address) }.getOrNull() }
+        return HistoryPage(txs, hasMore = allIds.size > ids.size)
     }
 
     private fun owns(output: JsonObject, address: String): Boolean =

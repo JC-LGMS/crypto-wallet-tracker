@@ -12,7 +12,10 @@ import com.jclg.cryptowallettracker.data.ChartRange
 import com.jclg.cryptowallettracker.data.Coin
 import com.jclg.cryptowallettracker.data.Coins
 import com.jclg.cryptowallettracker.data.Currency
+import com.jclg.cryptowallettracker.data.ExportCodec
 import com.jclg.cryptowallettracker.data.HistoryState
+import com.jclg.cryptowallettracker.data.LockCode
+import com.jclg.cryptowallettracker.data.LockType
 import com.jclg.cryptowallettracker.data.Market
 import com.jclg.cryptowallettracker.data.Markets
 import com.jclg.cryptowallettracker.data.PriceSource
@@ -50,6 +53,9 @@ data class UiState(
     val message: String? = null,
     /** Échecs de la dernière synchronisation : donnée + source. */
     val syncErrors: List<String> = emptyList(),
+    /** Un import chiffré attend son code. */
+    val importLocked: Boolean = false,
+    val importError: String? = null,
 ) {
     fun price(coinId: String): Double? =
         markets[coinId]?.priceUsd?.let { it * rates.rate(settings.currency) }
@@ -85,6 +91,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val state: StateFlow<UiState> = _state.asStateFlow()
 
     private var quotesLoading = false
+    private var pendingImport: String? = null
 
     init {
         val saved = snapshotStore.load()
@@ -195,7 +202,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun fetchBalance(wallet: Wallet, failures: MutableList<String>) {
-        val result = runCatching { Balances.balance(wallet) }
+        val settings = _state.value.settings
+        val result = runCatching {
+            Balances.balance(wallet, settings.etherscanKey, settings.beaconchainKey)
+        }
         _state.update { s ->
             val previous = s.balances[wallet.id] ?: Balance()
             val balance = result.fold(
@@ -299,9 +309,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             _state.update { s ->
                 val previous = s.history[wallet.id] ?: HistoryState()
                 val history = result.fold(
-                    onSuccess = {
+                    onSuccess = { page ->
                         previous.copy(
-                            txs = it,
+                            txs = page.txs,
+                            hasMore = page.hasMore,
                             loading = false,
                             error = null,
                             updatedAt = System.currentTimeMillis(),
@@ -323,7 +334,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setHideBalances(hidden: Boolean) = updateSettings { it.copy(hideBalances = hidden) }
 
-    fun setLockEnabled(enabled: Boolean) = updateSettings { it.copy(lockEnabled = enabled) }
+    /** Enregistre un PIN ou un schéma (haché) ; [LockType.NONE] efface le verrou. */
+    fun setLock(type: LockType, code: String = "") {
+        if (type == LockType.NONE) {
+            updateSettings { it.copy(lockType = type, lockSalt = "", lockCodeHash = "") }
+            return
+        }
+        val (salt, hash) = LockCode.hash(code)
+        updateSettings { it.copy(lockType = type, lockSalt = salt, lockCodeHash = hash) }
+    }
+
+    fun setEtherscanKey(key: String) = updateSettings { it.copy(etherscanKey = key.trim()) }
+
+    fun setBeaconchainKey(key: String) = updateSettings { it.copy(beaconchainKey = key.trim()) }
 
     fun setNotifyBalanceChange(enabled: Boolean) =
         updateSettings { it.copy(notifyBalanceChange = enabled) }
@@ -372,10 +395,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             .onFailure { e -> showMessage("Import impossible : ${e.friendly()}") }
     }
 
-    fun exportTo(uri: Uri) {
+    fun exportTo(uri: Uri, code: String = "") {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
-                val text = store.exportJson(_state.value.wallets)
+                val plain = store.exportJson(_state.value.wallets)
+                val text = if (code.isBlank()) plain else ExportCodec.encrypt(plain, code)
                 getApplication<Application>().contentResolver.openOutputStream(uri)?.use { out ->
                     out.write(text.toByteArray())
                 } ?: error("fichier inaccessible")
@@ -393,8 +417,33 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 showMessage("Lecture impossible : ${e.friendly()}")
                 return@launch
             }
-            withContext(Dispatchers.Main) { importText(text) }
+            withContext(Dispatchers.Main) {
+                if (ExportCodec.isEncrypted(text)) {
+                    pendingImport = text
+                    _state.update { it.copy(importLocked = true, importError = null) }
+                } else {
+                    importText(text)
+                }
+            }
         }
+    }
+
+    fun importEncrypted(code: String) {
+        val text = pendingImport ?: return
+        runCatching { ExportCodec.decrypt(text, code) }
+            .onSuccess { plain ->
+                pendingImport = null
+                _state.update { it.copy(importLocked = false, importError = null) }
+                importText(plain)
+            }
+            .onFailure { e ->
+                _state.update { it.copy(importError = e.message ?: "code incorrect") }
+            }
+    }
+
+    fun cancelImportCode() {
+        pendingImport = null
+        _state.update { it.copy(importLocked = false, importError = null) }
     }
 
     fun showMessage(message: String) {

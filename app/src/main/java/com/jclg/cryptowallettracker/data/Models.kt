@@ -82,6 +82,14 @@ data class HistoryState(
     val note: String? = null,
     val error: String? = null,
     val updatedAt: Long? = null,
+    /** Vrai si la source contient plus de transactions que celles récupérées. */
+    val hasMore: Boolean = false,
+)
+
+/** Transactions récupérées + indication de pagination. */
+data class HistoryPage(
+    val txs: List<Tx>,
+    val hasMore: Boolean = false,
 )
 
 data class Point(val time: Long, val value: Double)

@@ -21,6 +21,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -37,6 +38,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.jclg.cryptowallettracker.BuildConfig
 import com.jclg.cryptowallettracker.data.Currency
+import com.jclg.cryptowallettracker.data.LockType
 import com.jclg.cryptowallettracker.data.PriceSource
 import com.jclg.cryptowallettracker.data.ThemeMode
 
@@ -55,9 +57,12 @@ fun SettingsScreen(
     onVersionClick: () -> Unit,
     onBackgroundSync: (Int) -> Unit,
     onNotify: (Boolean) -> Unit,
-    onLock: (Boolean) -> Unit,
+    onLock: (LockType, String) -> Unit,
+    onEtherscanKey: (String) -> Unit,
+    onBeaconchainKey: (String) -> Unit,
 ) {
     var currencyDialog by remember { mutableStateOf(false) }
+    var lockSetup by remember { mutableStateOf<LockType?>(null) }
     val scrollState = rememberScrollState()
 
 
@@ -85,6 +90,19 @@ fun SettingsScreen(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                SectionTitle("Application")
+                Surface(
+                    onClick = onAbout,
+                    shape = RoundedCornerShape(14.dp),
+                    tonalElevation = 1.dp,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("À propos", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
+                    }
+                }
+
                 SectionTitle("Apparence")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ThemeMode.entries.forEach { mode ->
@@ -140,13 +158,47 @@ fun SettingsScreen(
                     }
                 }
 
-                SectionTitle("Sécurité")
-                ToggleRow(
-                    title = "Verrouillage de l'application",
-                    subtitle = "PIN, schéma ou empreinte digitale du téléphone",
-                    checked = state.settings.lockEnabled,
-                    onChange = onLock,
+                SectionTitle("Clés API")
+                Text(
+                    "Les sources etherscan.io et beaconcha.in exigent une clé gratuite, " +
+                        "créée sur leur site. Les autres sources n'en ont pas besoin.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                OutlinedTextField(
+                    value = state.settings.etherscanKey,
+                    onValueChange = onEtherscanKey,
+                    label = { Text("Clé API Etherscan") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = state.settings.beaconchainKey,
+                    onValueChange = onBeaconchainKey,
+                    label = { Text("Clé API beaconcha.in") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                SectionTitle("Sécurité")
+                Text(
+                    "Code demandé à l'ouverture de l'application. Il est propre à l'application, " +
+                        "pas au code du téléphone.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LockType.entries.forEach { type ->
+                        FilterChip(
+                            selected = state.settings.lockType == type,
+                            onClick = {
+                                if (type == LockType.NONE) onLock(LockType.NONE, "")
+                                else lockSetup = type
+                            },
+                            label = { Text(type.label) },
+                        )
+                    }
+                }
 
                 SectionTitle("Synchro en arrière-plan")
                 Text(
@@ -176,7 +228,7 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                state.catalog.forEach { coin ->
+                state.catalog.sortedBy { it.name }.forEach { coin ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -196,19 +248,6 @@ fun SettingsScreen(
                             checked = coin.id in state.settings.homeCharts,
                             onCheckedChange = { onToggleChart(coin.id) },
                         )
-                    }
-                }
-
-                SectionTitle("Application")
-                Surface(
-                    onClick = onAbout,
-                    shape = RoundedCornerShape(14.dp),
-                    tonalElevation = 1.dp,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("À propos", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
                     }
                 }
 
@@ -241,6 +280,17 @@ fun SettingsScreen(
                 onCurrency(it)
             },
             onDismiss = { currencyDialog = false },
+        )
+    }
+
+    lockSetup?.let { type ->
+        LockSetupDialog(
+            type = type,
+            onConfirm = { code ->
+                lockSetup = null
+                onLock(type, code)
+            },
+            onDismiss = { lockSetup = null },
         )
     }
 }
