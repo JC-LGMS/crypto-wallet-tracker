@@ -1,5 +1,12 @@
 # Journal des modifications
 
+## 1.4 — 2026-11-18
+
+- Nouveau portefeuille : retour du scan d'un QR code, avec la caméra de l'appareil (CameraX + ZXing)
+  au lieu du module Google qui échouait. Un QR de partage remplit la crypto, la source et l'adresse ;
+  un QR contenant seulement une adresse remplit l'adresse de la crypto choisie.
+- La permission caméra est demandée à la première utilisation.
+
 ## 1.3 — 2026-11-17
 
 - Accueil : bloc « Solde total » plus compact, sous-titre inutile au-dessus des marchés retiré.

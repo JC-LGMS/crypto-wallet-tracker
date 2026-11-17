@@ -75,8 +75,9 @@ Un seul module `:app`, aucune DI, aucune lib de navigation : `MainActivity.kt` g
   `Settings.notifyBalanceChange` (WorkManager), lien explorateur via `Coin.explorerUrl(adresse)`.
 - L'historique est plafonné (20 tx Blockscout/Bitcoin, 5 Decred) ; `HistoryState.hasMore` affiche
   « Seules les N transactions les plus récentes sont affichées » quand la source en contient plus.
-- L'ajout d'un portefeuille se fait par saisie de l'adresse ; la fiche affiche un QR (`WalletCodec`)
-  à côté de l'adresse. Pas de scan de QR : le module Google est absent de beaucoup d'appareils.
+- L'ajout d'un portefeuille se fait par saisie de l'adresse ou scan d'un QR (`ui/QrScanner.kt`) ; la
+  fiche affiche un QR (`WalletCodec`) à côté de l'adresse. Le scan utilise CameraX + ZXing, pas le
+  module Google `play-services-code-scanner` (absent de nombreux appareils, échec constaté).
 - Les graphiques viennent de CoinGecko (≤ 365 j), Binance (2 ans/5 ans/max), Kraken en secours
   (XMR, DCR) ; la source réelle est affichée sous la courbe.
 
@@ -140,7 +141,7 @@ Un seul module `:app`, aucune DI, aucune lib de navigation : `MainActivity.kt` g
   Le QR encode un seul payload. `c` accepte encore les anciens noms `ETHEREUM`/`DECRED`/`MONERO`.
   Un export fichier avec code est chiffré en AES-GCM et préfixé `CWT1:` (`ExportCodec`) : l'import
   détecte le préfixe et demande le code. Le QR n'est jamais chiffré.
-- Version : `val appVersionName` dans `app/build.gradle.kts` (affichée `v1.3`, centrée sur l'accueil)
+- Version : `val appVersionName` dans `app/build.gradle.kts` (affichée `v1.4`, centrée sur l'accueil)
   **et** entrée dans `app/src/main/assets/CHANGELOG.md` (les `#` Markdown sont retirés à l'affichage).
 - `versionCode` à incrémenter en même temps.
 - Montants en `Double` à l'affichage ; conversions wei/atoms/drops via `BigDecimal`.

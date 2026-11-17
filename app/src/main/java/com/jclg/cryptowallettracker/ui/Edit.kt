@@ -28,6 +28,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -51,6 +52,7 @@ import com.jclg.cryptowallettracker.data.Coin
 import com.jclg.cryptowallettracker.data.Coins
 import com.jclg.cryptowallettracker.data.SourceId
 import com.jclg.cryptowallettracker.data.Wallet
+import com.jclg.cryptowallettracker.data.WalletCodec
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,6 +70,8 @@ fun EditScreen(
     var name by rememberSaveable { mutableStateOf(initial?.name.orEmpty()) }
     var comment by rememberSaveable { mutableStateOf(initial?.comment.orEmpty()) }
     var coinDialog by remember { mutableStateOf(false) }
+    var scanner by remember { mutableStateOf(false) }
+    var scanMessage by remember { mutableStateOf<String?>(null) }
 
     val addable = remember(catalog) {
         catalog.filter { it.sources.isNotEmpty() }
@@ -121,6 +125,13 @@ fun EditScreen(
                     }
                     Icon(Icons.Default.ArrowDropDown, contentDescription = "Changer de crypto")
                 }
+            }
+
+            OutlinedButton(onClick = { scanner = true }, modifier = Modifier.fillMaxWidth()) {
+                Text("Scanner un QR code")
+            }
+            scanMessage?.let {
+                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             }
 
             if (sources.isEmpty()) {
@@ -246,6 +257,40 @@ fun EditScreen(
                 Text("Enregistrer")
             }
         }
+    }
+
+    if (scanner) {
+        QrScannerDialog(
+            onResult = { raw ->
+                scanner = false
+                val payload = WalletCodec.decode(raw)
+                val scanned = payload?.let { Coins.fromLegacy(it.c) }
+                // Un QR peut contenir l'adresse seule ou une URI du type bitcoin:adresse?amount=…
+                val directMatch = listOf(
+                    raw.trim(),
+                    raw.trim().substringAfter(':').substringBefore('?').trim(),
+                ).firstOrNull { it.isNotBlank() && coin.matchesAddress(it) }
+                when {
+                    payload != null && scanned != null && scanned.sources.isNotEmpty() -> {
+                        coinId = scanned.id
+                        sourceName = payload.s
+                        address = payload.a
+                        viewKey = payload.v
+                        if (payload.n.isNotBlank()) name = payload.n
+                        if (payload.m.isNotBlank()) comment = payload.m
+                        scanMessage = null
+                    }
+
+                    directMatch != null -> {
+                        address = directMatch
+                        scanMessage = null
+                    }
+
+                    else -> scanMessage = "QR code non reconnu pour ${coin.name}"
+                }
+            },
+            onDismiss = { scanner = false },
+        )
     }
 
     if (coinDialog) {

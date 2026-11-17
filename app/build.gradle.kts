@@ -6,7 +6,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
-val appVersionName = "1.3"
+val appVersionName = "1.4"
 
 val keystoreProperties = Properties().apply {
     val file = rootProject.file("keystore.properties")
@@ -21,7 +21,7 @@ android {
         applicationId = "com.jclg.cryptowallettracker"
         minSdk = 26
         targetSdk = 37
-        versionCode = 5
+        versionCode = 6
         versionName = appVersionName
     }
 
@@ -79,6 +79,9 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.google.zxing:core:3.5.3")
+    implementation("androidx.camera:camera-camera2:1.4.1")
+    implementation("androidx.camera:camera-lifecycle:1.4.1")
+    implementation("androidx.camera:camera-view:1.4.1")
 }
 
 /** Copie l'APK de debug dans dist/ avec un nom explicite (version incluse). */
