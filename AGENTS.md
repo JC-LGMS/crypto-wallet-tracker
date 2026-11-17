@@ -75,8 +75,8 @@ Un seul module `:app`, aucune DI, aucune lib de navigation : `MainActivity.kt` g
   `Settings.notifyBalanceChange` (WorkManager), lien explorateur via `Coin.explorerUrl(adresse)`.
 - L'historique est plafonné (20 tx Blockscout/Bitcoin, 5 Decred) ; `HistoryState.hasMore` affiche
   « Seules les N transactions les plus récentes sont affichées » quand la source en contient plus.
-- L'ajout d'un portefeuille propose le scan d'un QR (`WalletCodec`), et la fiche a une icône QR à côté
-  de l'adresse.
+- L'ajout d'un portefeuille se fait par saisie de l'adresse ; la fiche affiche un QR (`WalletCodec`)
+  à côté de l'adresse. Pas de scan de QR : le module Google est absent de beaucoup d'appareils.
 - Les graphiques viennent de CoinGecko (≤ 365 j), Binance (2 ans/5 ans/max), Kraken en secours
   (XMR, DCR) ; la source réelle est affichée sous la courbe.
 
@@ -109,9 +109,13 @@ Un seul module `:app`, aucune DI, aucune lib de navigation : `MainActivity.kt` g
   Alternative Binance `ticker/price`.
 - Graphiques : CoinGecko `market_chart` (≤ 365 j), Binance `klines` (2 ans/5 ans/max),
   Kraken `OHLC` en secours (XMR, DCR).
-- Soldes : RPC Ethereum/BSC/Avalanche (dont `balanceOf` ERC-20), Blockscout, mempool.space,
-  Blockstream, Ripple `s1.ripple.com`, Solana RPC, dogechain.info, Koios, TronGrid, Horizon,
-  litecoinspace.org (API mempool), toncenter, dcrdata, LWS Monero.
+- Soldes : RPC Ethereum/BSC/Avalanche/Polygon/Arbitrum/Optimism (dont `balanceOf` ERC-20), Blockscout,
+  mempool.space, Blockstream, Ripple `s1.ripple.com`, Solana RPC, dogechain.info, Koios, TronGrid,
+  Horizon, litecoinspace.org (API mempool), toncenter, dcrdata, LWS Monero.
+- Chaînes suivies via leur API publique : NEAR (`rpc.mainnet.near.org`), Algorand (Algonode),
+  Cosmos (`cosmos-rest.publicnode.com`, denom `uatom`), Hedera (mirrornode), Stacks (Hiro),
+  VeChain (`mainnet.vechain.org/accounts`), Aptos (`fullnode.mainnet.aptoslabs.com`), Filecoin
+  (Filfox). Toutes en lecture seule, sans clé.
 - Ethereum : `etherscan.io` (API V2, `chainid=1`) et `beaconcha.in` (API V1, execution address)
   **exigent une clé gratuite**, saisie dans Réglages › Clés API (`Settings.etherscanKey`,
   `Settings.beaconchainKey`). Sans clé, la source échoue avec un message explicite.
@@ -136,7 +140,7 @@ Un seul module `:app`, aucune DI, aucune lib de navigation : `MainActivity.kt` g
   Le QR encode un seul payload. `c` accepte encore les anciens noms `ETHEREUM`/`DECRED`/`MONERO`.
   Un export fichier avec code est chiffré en AES-GCM et préfixé `CWT1:` (`ExportCodec`) : l'import
   détecte le préfixe et demande le code. Le QR n'est jamais chiffré.
-- Version : `val appVersionName` dans `app/build.gradle.kts` (affichée `v1.2`, centrée sur l'accueil)
+- Version : `val appVersionName` dans `app/build.gradle.kts` (affichée `v1.3`, centrée sur l'accueil)
   **et** entrée dans `app/src/main/assets/CHANGELOG.md` (les `#` Markdown sont retirés à l'affichage).
 - `versionCode` à incrémenter en même temps.
 - Montants en `Double` à l'affichage ; conversions wei/atoms/drops via `BigDecimal`.

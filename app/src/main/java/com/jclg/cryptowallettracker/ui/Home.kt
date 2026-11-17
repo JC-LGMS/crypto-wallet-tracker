@@ -78,7 +78,6 @@ fun HomeScreen(
     onOpenSettings: () -> Unit,
     onExportFile: (String) -> Unit,
     onImportFile: () -> Unit,
-    onScanQr: () -> Unit,
     onVersionClick: () -> Unit,
     onPickCurrency: () -> Unit,
     onRefreshLogos: () -> Unit,
@@ -135,10 +134,6 @@ fun HomeScreen(
                                     DropdownMenuItem(
                                         text = { Text("Importer un fichier") },
                                         onClick = { menuOpen = false; onImportFile() },
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Scanner un QR code") },
-                                        onClick = { menuOpen = false; onScanQr() },
                                     )
                                     DropdownMenuItem(
                                         text = { Text("Mettre à jour les logos") },
@@ -216,15 +211,13 @@ fun HomeScreen(
                             style = MaterialTheme.typography.titleMedium,
                             modifier = Modifier.padding(top = 14.dp),
                         )
-                        Text(
-                            if (visibleCoins.isEmpty()) {
-                                "Choisissez les cryptos à suivre dans les réglages."
-                            } else {
-                                "Touchez une crypto pour voir son graphique."
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        if (visibleCoins.isEmpty()) {
+                            Text(
+                                "Choisissez les cryptos à suivre dans les réglages.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
 
                     items(visibleCoins, key = { "market-${it.id}" }) { coin ->
@@ -287,7 +280,7 @@ private fun TotalCard(
             .clip(RoundedCornerShape(24.dp))
             .background(Brush.linearGradient(listOf(HeroTop, HeroBottom)))
             .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 14.dp),
+            .padding(horizontal = 18.dp, vertical = 8.dp),
     ) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {

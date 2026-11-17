@@ -1,5 +1,15 @@
 # Journal des modifications
 
+## 1.3 — 2026-11-17
+
+- Accueil : bloc « Solde total » plus compact, sous-titre inutile au-dessus des marchés retiré.
+- Le scanner de QR code (indisponible sur les appareils sans module Google) est retiré du menu et de
+  l'ajout ; l'export/import par fichier et le QR affiché sur la fiche restent disponibles.
+- Ajout d'un portefeuille : liste des cryptos triée par ordre alphabétique, sources de données
+  réparties sur plusieurs lignes (elles débordaient pour Ethereum).
+- 14 nouvelles cryptos suivies : Polygon (POL), Arbitrum (ARB), Optimism (OP), NEAR, Algorand,
+  Cosmos (ATOM), Hedera (HBAR), Stacks (STX), VeChain (VET), Aptos, Filecoin, Uniswap, Aave et Pepe.
+
 ## 1.2 — 2026-11-17
 
 - Fiche portefeuille : message quand la source contient plus de transactions que celles affichées.

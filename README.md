@@ -5,14 +5,16 @@ seules des adresses publiques sont enregistrées, aucune clé privée.
 
 ## Fonctionnalités
 
-- **Top 100 des cryptos** pour les cours et les graphiques ; **22 cryptos** ont en plus une source de
-  solde (Ethereum, Bitcoin, BNB, Solana, XRP, Cardano, TRON, Stellar, Litecoin, TON, Monero, Decred…).
+- **Top 100 des cryptos** pour les cours et les graphiques ; **36 cryptos** ont en plus une source de
+  solde (Ethereum, Bitcoin, BNB, Solana, XRP, Cardano, TRON, Stellar, Litecoin, TON, Monero, Decred,
+  Polygon, Arbitrum, Optimism, NEAR, Algorand, Cosmos, Hedera, Stacks, VeChain, Aptos, Filecoin, UNI,
+  AAVE, PEPE…).
 - Plusieurs portefeuilles par crypto, avec nom et commentaire ; les adresses restent sur la fiche.
 - **Verrouillage** de l'application par PIN ou schéma dessiné, propre à l'application.
 - **Soldes masquables** d'un appui sur l'icône œil (total, portefeuilles, fiche).
 - **Synchro en arrière-plan** toutes les 6, 12 ou 24 h (même application fermée) et **notification** en
   cas de changement de solde.
-- Ajout d'un portefeuille par saisie **ou scan d'un QR code** ; icône QR à côté de l'adresse.
+- Ajout d'un portefeuille par saisie de l'adresse ; icône QR à côté de l'adresse pour la partager.
 - Lien vers l'explorateur de la blockchain depuis chaque fiche (mempool.space, Blockscout, xrpscan…).
 - Solde par portefeuille et **total dans la devise choisie** : euro, dollar, livre, yen, yuan, BTC
   ou ETH — un appui sur le solde total change la devise partout (aussi depuis la fiche).
@@ -37,10 +39,10 @@ seules des adresses publiques sont enregistrées, aucune clé privée.
   crypto. L'accueil n'affiche que les cryptos cochées dans les réglages.
 - Historique des transactions pour Ethereum (source Blockscout), Bitcoin et Decred, avec lien vers
   l'explorateur et message quand seules les transactions les plus récentes sont affichées.
-- Export / import des portefeuilles par fichier JSON et par QR code. Un **code optionnel** chiffre
-  l'export (AES-GCM) et est demandé à l'import.
-- Liste des cryptos de l'accueil triée par ordre alphabétique.
-- Page À propos (en haut des réglages), changelog, version affichée `v1.2`.
+- Export / import des portefeuilles par fichier JSON ; le QR affiché sur une fiche sert à partager un
+  portefeuille. Un **code optionnel** chiffre l'export (AES-GCM) et est demandé à l'import.
+- Listes de cryptos triées par ordre alphabétique (accueil et ajout).
+- Page À propos (en haut des réglages), changelog, version affichée `v1.3`.
 
 ## Installation
 

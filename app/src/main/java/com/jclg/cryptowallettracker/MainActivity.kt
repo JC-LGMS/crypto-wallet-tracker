@@ -39,9 +39,6 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModelProvider
-import com.google.mlkit.vision.barcode.common.Barcode
-import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
-import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.jclg.cryptowallettracker.data.Coins
 import com.jclg.cryptowallettracker.data.LockCode
 import com.jclg.cryptowallettracker.data.Wallet
@@ -183,19 +180,6 @@ private fun App(vm: AppViewModel, state: UiState) {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    fun scanQr() {
-        runCatching {
-            GmsBarcodeScanning.getClient(
-                context,
-                GmsBarcodeScannerOptions.Builder()
-                    .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
-                    .build(),
-            ).startScan()
-                .addOnSuccessListener { barcode -> barcode.rawValue?.let(vm::importText) }
-                .addOnFailureListener { vm.showMessage("Scan annulé ou indisponible") }
-        }.onFailure { vm.showMessage("Scanner indisponible sur cet appareil") }
-    }
-
     BackHandler(enabled = route != "home") {
         route = when {
             route.startsWith("wallet/") -> "home"
@@ -230,7 +214,6 @@ private fun App(vm: AppViewModel, state: UiState) {
                     activity?.launchExport(name, code)
                 },
                 onImportFile = { activity?.launchImport() },
-                onScanQr = ::scanQr,
                 onVersionClick = { changelogOpen = true },
                 onPickCurrency = { currencyOpen = true },
                 onRefreshLogos = vm::refreshLogos,

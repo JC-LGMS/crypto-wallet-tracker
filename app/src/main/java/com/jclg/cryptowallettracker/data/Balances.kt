@@ -27,7 +27,8 @@ object Balances {
     ): Double = withContext(Dispatchers.IO) {
         val coin = wallet.coin ?: error("crypto inconnue")
         when (val source = wallet.sourceOrFirst ?: error("aucune source de solde pour ${coin.symbol}")) {
-            SourceId.EVM_RPC, SourceId.BSC_RPC, SourceId.AVAX_RPC ->
+            SourceId.EVM_RPC, SourceId.BSC_RPC, SourceId.AVAX_RPC,
+            SourceId.POLYGON_RPC, SourceId.ARBITRUM_RPC, SourceId.OPTIMISM_RPC ->
                 evmBalance(coin.rpc ?: ETH_RPC, wallet.address, null, coin.decimals)
 
             SourceId.ERC20_RPC ->
@@ -46,6 +47,14 @@ object Balances {
             SourceId.HORIZON -> stellarBalance(wallet.address)
             SourceId.LITECOINSPACE -> mempoolBalance("https://litecoinspace.org", wallet.address)
             SourceId.TONCENTER -> tonBalance(wallet.address)
+            SourceId.NEAR_RPC -> nearBalance(wallet.address)
+            SourceId.ALGONODE -> algoBalance(wallet.address)
+            SourceId.COSMOS_REST -> atomBalance(wallet.address)
+            SourceId.HEDERA_MIRROR -> hbarBalance(wallet.address)
+            SourceId.HIRO -> stxBalance(wallet.address)
+            SourceId.VECHAIN -> vetBalance(wallet.address)
+            SourceId.APTOS -> aptBalance(wallet.address)
+            SourceId.FILFOX -> filBalance(wallet.address)
             SourceId.LWS -> {
                 require(wallet.viewKey.isNotBlank()) { "clé d'affichage requise pour Monero" }
                 moneroBalance(wallet.address, wallet.viewKey)
@@ -144,8 +153,87 @@ object Balances {
         return HistoryPage(txs, hasMore = next != null && next !is JsonNull)
     }
 
-    // ---------- Bitcoin / Litecoin ----------
+    // ---------- Autres chaînes (API publiques) ----------
 
+    private fun BigInteger.units(decimals: Int): Double =
+        BigDecimal(this).movePointLeft(decimals).toDouble()
+
+    private fun String.bigIntOrZero(): BigInteger = toBigIntegerOrNull() ?: BigInteger.ZERO
+
+    private suspend fun nearBalance(address: String): Double {
+        val body = """{"jsonrpc":"2.0","id":1,"method":"query","params":{"request_type":"view_account","finality":"final","account_id":"$address"}}"""
+        val result = json.parseToJsonElement(Net.postJson("https://rpc.mainnet.near.org", body))
+            .jsonObject["result"]?.jsonObject
+            ?: error("compte NEAR introuvable")
+        val amount = result["amount"]?.jsonPrimitive?.contentOrNull ?: error("solde NEAR illisible")
+        return amount.bigIntOrZero().units(24)
+    }
+
+    private suspend fun algoBalance(address: String): Double {
+        val root = json.parseToJsonElement(
+            Net.get("https://mainnet-api.algonode.cloud/v2/accounts/$address"),
+        ).jsonObject
+        val amount = root["amount"]?.jsonPrimitive?.contentOrNull ?: error("solde ALGO illisible")
+        return amount.bigIntOrZero().units(6)
+    }
+
+    private suspend fun atomBalance(address: String): Double {
+        val root = json.parseToJsonElement(
+            Net.get("https://cosmos-rest.publicnode.com/cosmos/bank/v1beta1/balances/$address"),
+        ).jsonObject
+        val amount = root["balances"]?.jsonArray.orEmpty()
+            .firstOrNull { it.jsonObject["denom"]?.jsonPrimitive?.contentOrNull == "uatom" }
+            ?.jsonObject?.get("amount")?.jsonPrimitive?.contentOrNull ?: "0"
+        return amount.bigIntOrZero().units(6)
+    }
+
+    private suspend fun hbarBalance(address: String): Double {
+        val root = json.parseToJsonElement(
+            Net.get("https://mainnet-public.mirrornode.hedera.com/api/v1/accounts/$address"),
+        ).jsonObject
+        val amount = root["balance"]?.jsonObject?.get("balance")?.jsonPrimitive?.contentOrNull
+            ?: error("solde HBAR illisible")
+        return amount.bigIntOrZero().units(8)
+    }
+
+    private suspend fun stxBalance(address: String): Double {
+        val root = json.parseToJsonElement(
+            Net.get("https://api.mainnet.hiro.so/extended/v1/address/$address/balances"),
+        ).jsonObject
+        val amount = root["stx"]?.jsonObject?.get("balance")?.jsonPrimitive?.contentOrNull
+            ?: error("solde STX illisible")
+        return amount.bigIntOrZero().units(6)
+    }
+
+    private suspend fun vetBalance(address: String): Double {
+        val root = json.parseToJsonElement(
+            Net.get("https://mainnet.vechain.org/accounts/$address"),
+        ).jsonObject
+        val hex = root["balance"]?.jsonPrimitive?.contentOrNull ?: "0x0"
+        return hex.removePrefix("0x").toBigIntegerOrNull(16)?.units(18) ?: 0.0
+    }
+
+    private suspend fun aptBalance(address: String): Double {
+        val store = "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>"
+        val resources = json.parseToJsonElement(
+            Net.get("https://fullnode.mainnet.aptoslabs.com/v1/accounts/$address/resources"),
+        ).jsonArray
+        val coin = resources.firstOrNull {
+            it.jsonObject["type"]?.jsonPrimitive?.contentOrNull == store
+        }?.jsonObject?.get("data")?.jsonObject?.get("coin")?.jsonObject ?: return 0.0
+        val amount = coin["value"]?.jsonPrimitive?.contentOrNull ?: return 0.0
+        return amount.bigIntOrZero().units(8)
+    }
+
+    private suspend fun filBalance(address: String): Double {
+        val root = json.parseToJsonElement(
+            Net.get("https://filfox.info/api/v1/address/$address"),
+        ).jsonObject
+        val amount = root["balance"]?.jsonPrimitive?.contentOrNull ?: error("solde FIL illisible")
+        return amount.bigIntOrZero().units(18)
+    }
+
+    // ---------- Bitcoin / Litecoin ----------
     private suspend fun mempoolBalance(base: String, address: String): Double {
         val root = json.parseToJsonElement(Net.get("$base/api/address/$address")).jsonObject
         val stats = root["chain_stats"]?.jsonObject ?: error("adresse refusée par l'explorateur")

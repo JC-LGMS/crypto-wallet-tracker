@@ -3,6 +3,7 @@ package com.jclg.cryptowallettracker.ui
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -27,7 +28,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -42,20 +42,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.google.mlkit.vision.barcode.common.Barcode
-import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
-import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.jclg.cryptowallettracker.data.Coin
 import com.jclg.cryptowallettracker.data.Coins
 import com.jclg.cryptowallettracker.data.SourceId
 import com.jclg.cryptowallettracker.data.Wallet
-import com.jclg.cryptowallettracker.data.WalletCodec
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,50 +68,17 @@ fun EditScreen(
     var name by rememberSaveable { mutableStateOf(initial?.name.orEmpty()) }
     var comment by rememberSaveable { mutableStateOf(initial?.comment.orEmpty()) }
     var coinDialog by remember { mutableStateOf(false) }
-    var scanError by remember { mutableStateOf<String?>(null) }
-    val context = LocalContext.current
 
     val addable = remember(catalog) {
-        catalog.filter { it.sources.isNotEmpty() }.ifEmpty { Coins.all.filter { it.sources.isNotEmpty() } }
+        catalog.filter { it.sources.isNotEmpty() }
+            .ifEmpty { Coins.all.filter { it.sources.isNotEmpty() } }
+            .sortedBy { it.name }
     }
     val coin = Coins.byId(coinId) ?: addable.firstOrNull() ?: Coins.all.first()
     val sources = coin.sources
     val source: SourceId? = sources.firstOrNull { it.name == sourceName } ?: sources.firstOrNull()
     val addressValid = coin.matchesAddress(address)
     val viewKeyValid = coin.symbol != "XMR" || viewKey.trim().length == 64
-
-    fun scanQr() {
-        runCatching {
-            GmsBarcodeScanning.getClient(
-                context,
-                GmsBarcodeScannerOptions.Builder()
-                    .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
-                    .build(),
-            ).startScan()
-                .addOnSuccessListener { barcode ->
-                    val raw = barcode.rawValue ?: return@addOnSuccessListener
-                    val payload = WalletCodec.decode(raw)
-                    if (payload == null) {
-                        address = raw.trim()
-                        scanError = null
-                        return@addOnSuccessListener
-                    }
-                    val scanned = Coins.fromLegacy(payload.c)
-                    if (scanned == null || scanned.sources.isEmpty()) {
-                        scanError = "Crypto non pris en charge : ${payload.c}"
-                        return@addOnSuccessListener
-                    }
-                    coinId = scanned.id
-                    sourceName = payload.s
-                    address = payload.a
-                    viewKey = payload.v
-                    if (payload.n.isNotBlank()) name = payload.n
-                    if (payload.m.isNotBlank()) comment = payload.m
-                    scanError = null
-                }
-                .addOnFailureListener { scanError = "Scan annulé ou indisponible" }
-        }.onFailure { scanError = "Scanner indisponible sur cet appareil" }
-    }
 
     Scaffold(
         topBar = {
@@ -161,13 +123,6 @@ fun EditScreen(
                 }
             }
 
-            OutlinedButton(onClick = { scanQr() }, modifier = Modifier.fillMaxWidth()) {
-                Text("Scanner un QR code")
-            }
-            scanError?.let {
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-            }
-
             if (sources.isEmpty()) {
                 Text(
                     "Cette crypto n'a pas encore de source de solde : ajout impossible, " +
@@ -185,7 +140,10 @@ fun EditScreen(
 
                 if (sources.size > 1) {
                     Text("Source de données", style = MaterialTheme.typography.labelLarge)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
                         sources.forEach { option ->
                             FilterChip(
                                 selected = option == source,
