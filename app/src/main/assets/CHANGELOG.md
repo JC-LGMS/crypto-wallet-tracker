@@ -1,5 +1,11 @@
 # Journal des modifications
 
+## 1.5 — 2026-11-18
+
+- Accueil : appui long sur un portefeuille pour le déplacer vers le haut ou le bas, ou le supprimer.
+- Accueil : bouton + à côté de « Marchés » pour ajouter un graphique (liste filtrable), appui long sur
+  un graphique pour le retirer.
+
 ## 1.4 — 2026-11-18
 
 - Nouveau portefeuille : retour du scan d'un QR code, avec la caméra de l'appareil (CameraX + ZXing)

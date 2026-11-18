@@ -43,7 +43,9 @@ seules des adresses publiques sont enregistrées, aucune clé privée.
 - Export / import des portefeuilles par fichier JSON ; le QR affiché sur une fiche sert à partager un
   portefeuille. Un **code optionnel** chiffre l'export (AES-GCM) et est demandé à l'import.
 - Listes de cryptos triées par ordre alphabétique (accueil et ajout).
-- Page À propos (en haut des réglages), changelog, version affichée `v1.4`.
+- Appui long sur un portefeuille : le déplacer vers le haut ou le bas, ou le supprimer. Appui long sur
+  un graphique : le retirer ; le bouton + à côté de « Marchés » en ajoute un.
+- Page À propos (en haut des réglages), changelog, version affichée `v1.5`.
 
 ## Installation
 

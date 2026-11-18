@@ -269,6 +269,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         sync()
     }
 
+    /** Déplace un portefeuille de [delta] rangs dans l'ordre de l'accueil. */
+    fun moveWallet(wallet: Wallet, delta: Int) {
+        val list = _state.value.wallets.toMutableList()
+        val from = list.indexOfFirst { it.id == wallet.id }
+        val to = from + delta
+        if (from < 0 || to !in list.indices) return
+        list.add(to, list.removeAt(from))
+        persist(list)
+    }
+
     fun setWalletSource(wallet: Wallet, source: SourceId) {
         val updated = wallet.copy(source = source)
         persist(_state.value.wallets.map { if (it.id == updated.id) updated else it })

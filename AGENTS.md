@@ -60,7 +60,10 @@ Un seul module `:app`, aucune DI, aucune lib de navigation : `MainActivity.kt` g
 ## Règles de conception
 
 - L'accueil n'affiche **jamais** l'adresse d'un portefeuille (uniquement nom, source, commentaire, solde).
-- L'accueil ne liste que les cryptos cochées dans `Settings.homeCharts` (sinon message d'invite).
+- L'accueil ne liste que les cryptos cochées dans `Settings.homeCharts` (sinon message d'invite) ;
+  le + à côté de « Marchés » et l'appui long sur un graphique modifient ce même réglage.
+- L'ordre des portefeuilles est celui de la liste `wallets` (`AppViewModel.moveWallet`) : l'accueil ne
+  retrie jamais les portefeuilles par nom.
 - Plusieurs portefeuilles peuvent partager la même crypto ; l'import déduplique sur `coinId + adresse`.
 - Tous les montants passent par `UiState.price()` (USD × taux) ; la devise est globale (`Settings`).
 - Les cours sont normalisés en USD ; les taux viennent des cotations BTC en EUR/GBP/JPY/CNY.

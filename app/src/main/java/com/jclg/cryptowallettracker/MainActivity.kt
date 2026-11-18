@@ -218,6 +218,9 @@ private fun App(vm: AppViewModel, state: UiState) {
                 onPickCurrency = { currencyOpen = true },
                 onRefreshLogos = vm::refreshLogos,
                 onToggleHidden = { vm.setHideBalances(!state.settings.hideBalances) },
+                onToggleChart = vm::toggleHomeChart,
+                onMoveWallet = vm::moveWallet,
+                onDeleteWallet = vm::delete,
             )
 
             route == "settings" -> SettingsScreen(

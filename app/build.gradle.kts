@@ -6,7 +6,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
-val appVersionName = "1.4"
+val appVersionName = "1.5"
 
 val keystoreProperties = Properties().apply {
     val file = rootProject.file("keystore.properties")
@@ -21,7 +21,7 @@ android {
         applicationId = "com.jclg.cryptowallettracker"
         minSdk = 26
         targetSdk = 37
-        versionCode = 6
+        versionCode = 7
         versionName = appVersionName
     }
 

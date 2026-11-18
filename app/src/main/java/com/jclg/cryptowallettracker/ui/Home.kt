@@ -1,6 +1,7 @@
 package com.jclg.cryptowallettracker.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -23,6 +25,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -31,9 +34,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -82,9 +87,15 @@ fun HomeScreen(
     onPickCurrency: () -> Unit,
     onRefreshLogos: () -> Unit,
     onToggleHidden: () -> Unit,
+    onToggleChart: (String) -> Unit,
+    onMoveWallet: (Wallet, Int) -> Unit,
+    onDeleteWallet: (Wallet) -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     var exportDialog by remember { mutableStateOf(false) }
+    var chartPicker by remember { mutableStateOf(false) }
+    var walletMenu by remember { mutableStateOf<Wallet?>(null) }
+    var pendingDelete by remember { mutableStateOf<Wallet?>(null) }
     val listState = rememberLazyListState()
     val hidden = state.settings.hideBalances
     val visibleCoins = state.catalog
@@ -201,16 +212,23 @@ fun HomeScreen(
                                 currency = state.settings.currency,
                                 hidden = hidden,
                                 onClick = { onOpenWallet(wallet.id) },
+                                onLongClick = { walletMenu = wallet },
                             )
                         }
                     }
 
                     item {
-                        Text(
-                            "Marchés",
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(top = 14.dp),
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "Marchés",
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.padding(top = 14.dp),
+                            )
+                            Spacer(Modifier.weight(1f))
+                            IconButton(onClick = { chartPicker = true }) {
+                                Icon(Icons.Default.Add, contentDescription = "Ajouter un graphique")
+                            }
+                        }
                         if (visibleCoins.isEmpty()) {
                             Text(
                                 "Choisissez les cryptos à suivre dans les réglages.",
@@ -228,6 +246,7 @@ fun HomeScreen(
                             currency = state.settings.currency,
                             sparkline = state.markets[coin.id]?.sparkline,
                             onClick = { onOpenPrice(coin.id) },
+                            onLongClick = { onToggleChart(coin.id) },
                         )
                     }
 
@@ -263,6 +282,114 @@ fun HomeScreen(
             onDismiss = { exportDialog = false },
         )
     }
+
+    if (chartPicker) {
+        ChartPickerDialog(
+            coins = state.catalog,
+            selected = state.settings.homeCharts,
+            onPick = { coinId ->
+                chartPicker = false
+                onToggleChart(coinId)
+            },
+            onDismiss = { chartPicker = false },
+        )
+    }
+
+    walletMenu?.let { wallet ->
+        val index = state.wallets.indexOfFirst { it.id == wallet.id }
+        AlertDialog(
+            onDismissRequest = { walletMenu = null },
+            title = { Text(wallet.name.ifBlank { wallet.coin?.name ?: "Portefeuille" }) },
+            text = {
+                Column {
+                    TextButton(
+                        onClick = { walletMenu = null; onMoveWallet(wallet, -1) },
+                        enabled = index > 0,
+                    ) { Text("Monter") }
+                    TextButton(
+                        onClick = { walletMenu = null; onMoveWallet(wallet, 1) },
+                        enabled = index in 0 until state.wallets.lastIndex,
+                    ) { Text("Descendre") }
+                    TextButton(onClick = { walletMenu = null; pendingDelete = wallet }) {
+                        Text("Supprimer", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { walletMenu = null }) { Text("Fermer") } },
+        )
+    }
+
+    pendingDelete?.let { wallet ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("Supprimer ce portefeuille ?") },
+            text = { Text(wallet.name.ifBlank { wallet.coin?.name ?: "" }) },
+            confirmButton = {
+                TextButton(onClick = { pendingDelete = null; onDeleteWallet(wallet) }) {
+                    Text("Supprimer", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("Annuler") } },
+        )
+    }
+}
+
+@Composable
+private fun ChartPickerDialog(
+    coins: List<Coin>,
+    selected: Set<String>,
+    onPick: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var query by remember { mutableStateOf("") }
+    val available = coins
+        .filter { it.id !in selected && it.name.contains(query.trim(), ignoreCase = true) }
+        .sortedBy { it.name }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Ajouter un graphique") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    label = { Text("Rechercher une crypto") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                when {
+                    available.isEmpty() -> Text(
+                        if (coins.size == selected.size) "Toutes les cryptos sont déjà sur l'accueil."
+                        else "Aucune crypto trouvée.",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                    else -> LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                        items(available, key = { it.id }) { coin ->
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onPick(coin.id) }
+                                    .padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                CoinLogo(coin, null, 26.dp)
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    "${coin.name} (${coin.symbol})",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Fermer") } },
+    )
 }
 
 @Composable
@@ -344,12 +471,14 @@ private fun WalletRow(
     currency: Currency,
     hidden: Boolean,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
 ) {
     Surface(
-        onClick = onClick,
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surface,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
             CoinLogo(coin, image, 36.dp)
@@ -419,11 +548,13 @@ private fun MarketRow(
     currency: Currency,
     sparkline: List<Double>?,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
 ) {
     Surface(
-        onClick = onClick,
         shape = RoundedCornerShape(14.dp),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
         Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             CoinLogo(coin, market?.image, 30.dp)
