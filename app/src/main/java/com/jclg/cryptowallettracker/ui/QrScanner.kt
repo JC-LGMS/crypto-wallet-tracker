@@ -46,6 +46,7 @@ import com.google.zxing.common.HybridBinarizer
 import com.google.zxing.qrcode.QRCodeReader
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Lecture d'un QR code avec la caméra de l'appareil (CameraX + ZXing).
@@ -68,7 +69,7 @@ fun QrScannerDialog(onResult: (String) -> Unit, onDismiss: () -> Unit) {
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Scanner un QR code") },
+        title = { DialogTitle("Scanner un QR code", onDismiss) },
         text = {
             if (granted) {
                 Box(
@@ -91,7 +92,6 @@ fun QrScannerDialog(onResult: (String) -> Unit, onDismiss: () -> Unit) {
                 TextButton(onClick = { requestCamera(context) }) { Text("Autoriser la caméra") }
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Annuler") } },
     )
 }
 
@@ -102,6 +102,7 @@ private fun CameraPreview(onResult: (String) -> Unit) {
     val currentResult = rememberUpdatedState(onResult)
     val executor = remember { Executors.newSingleThreadExecutor() }
     val done = remember { AtomicBoolean(false) }
+    val lastScan = remember { AtomicLong(0) }
     val provider = remember { arrayOfNulls<ProcessCameraProvider>(1) }
 
     DisposableEffect(Unit) {
@@ -118,7 +119,7 @@ private fun CameraPreview(onResult: (String) -> Unit) {
                 scaleType = PreviewView.ScaleType.FILL_CENTER
                 val future = ProcessCameraProvider.getInstance(ctx)
                 future.addListener({
-                    val camera = future.get()
+                    val camera = runCatching { future.get() }.getOrNull() ?: return@addListener
                     provider[0] = camera
                     val preview = Preview.Builder().build()
                     preview.setSurfaceProvider(surfaceProvider)
@@ -136,9 +137,19 @@ private fun CameraPreview(onResult: (String) -> Unit) {
                         )
                         .build()
                     analysis.setAnalyzer(executor) { image ->
+                        // Une image sur cinq suffit : chaque essai copie ~1 Mo et essaie 4 orientations.
+                        val now = android.os.SystemClock.elapsedRealtime()
+                        if (done.get() || now - lastScan.get() < 200) {
+                            image.close()
+                            return@setAnalyzer
+                        }
+                        lastScan.set(now)
                         val text = runCatching { decodeQr(image) }.getOrNull()
                         image.close()
-                        if (text != null && done.compareAndSet(false, true)) currentResult.value(text)
+                        if (text != null && done.compareAndSet(false, true)) {
+                            // Le résultat modifie l'état Compose : retour obligatoire sur le fil principal.
+                            ContextCompat.getMainExecutor(context).execute { currentResult.value(text) }
+                        }
                     }
                     runCatching {
                         camera.unbindAll()

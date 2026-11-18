@@ -13,7 +13,10 @@ data class BalanceEntry(val amount: Double, val updatedAt: Long)
 @Serializable
 data class BalanceSnapshot(
     val balances: Map<String, BalanceEntry> = emptyMap(),
-    val updatedAt: Long? = null,
+    /** Derniers cours connus, pour afficher un total hors ligne. */
+    val markets: Map<String, Market> = emptyMap(),
+    val rates: Rates = Rates(emptyMap()),
+    val quotesUpdatedAt: Long? = null,
 )
 
 class SnapshotStore(context: Context) {

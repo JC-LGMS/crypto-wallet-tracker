@@ -13,16 +13,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
@@ -43,11 +48,26 @@ import kotlinx.serialization.json.Json
 
 private val qrJson = Json { encodeDefaults = false }
 
+/** Titre de dialogue avec la croix de fermeture à droite, commune à toutes les boîtes. */
+@Composable
+fun DialogTitle(text: String, onClose: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text,
+            style = MaterialTheme.typography.headlineSmall,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onClose) {
+            Icon(Icons.Default.Close, contentDescription = "Fermer")
+        }
+    }
+}
+
 @Composable
 fun CurrencyDialog(current: Currency, onPick: (Currency) -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Devise d'affichage") },
+        title = { DialogTitle("Devise d'affichage", onDismiss) },
         text = {
             Column {
                 Currency.entries.forEach { currency ->
@@ -72,9 +92,7 @@ fun CurrencyDialog(current: Currency, onPick: (Currency) -> Unit, onDismiss: () 
                 }
             }
         },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Annuler") }
-        },
+        confirmButton = {},
     )
 }
 
@@ -87,7 +105,7 @@ fun WalletQrDialog(wallet: Wallet, onDismiss: () -> Unit) {
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(wallet.name.ifBlank { wallet.coin?.name ?: "Portefeuille" }) },
+        title = { DialogTitle(wallet.name.ifBlank { wallet.coin?.name ?: "Portefeuille" }, onDismiss) },
         text = {
             if (bitmap != null) {
                 Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
@@ -108,9 +126,7 @@ fun WalletQrDialog(wallet: Wallet, onDismiss: () -> Unit) {
                 Text("Contenu trop long pour tenir dans un QR code. Raccourcissez le commentaire.")
             }
         },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Fermer") }
-        },
+        confirmButton = {},
     )
 }
 
@@ -120,7 +136,7 @@ fun ExportCodeDialog(onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
     var code by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Protéger l'export") },
+        title = { DialogTitle("Protéger l'export", onDismiss) },
         text = {
             Column {
                 Text(
@@ -142,7 +158,6 @@ fun ExportCodeDialog(onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
             }
         },
         confirmButton = { TextButton(onClick = { onConfirm(code) }) { Text("Exporter") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Annuler") } },
     )
 }
 
@@ -152,7 +167,7 @@ fun ImportCodeDialog(error: String?, onConfirm: (String) -> Unit, onDismiss: () 
     var code by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Fichier protégé") },
+        title = { DialogTitle("Fichier protégé", onDismiss) },
         text = {
             Column {
                 Text("Ce fichier a été exporté avec un code.", style = MaterialTheme.typography.bodySmall)
@@ -172,7 +187,6 @@ fun ImportCodeDialog(error: String?, onConfirm: (String) -> Unit, onDismiss: () 
             }
         },
         confirmButton = { TextButton(onClick = { onConfirm(code) }) { Text("Importer") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Annuler") } },
     )
 }
 
@@ -186,7 +200,7 @@ fun ChangelogDialog(onDismiss: () -> Unit) {
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Version ${BuildConfig.VERSION_NAME}") },
+        title = { DialogTitle("Version ${BuildConfig.VERSION_NAME}", onDismiss) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(
@@ -195,9 +209,7 @@ fun ChangelogDialog(onDismiss: () -> Unit) {
                 )
             }
         },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Fermer") }
-        },
+        confirmButton = {},
     )
 }
 

@@ -1,5 +1,30 @@
 # Journal des modifications
 
+## 1.6 - 2026-11-18
+
+- Export : le code saisi avant le choix du fichier survit à une rotation ou à une fermeture de l'app.
+- Liste des portefeuilles : un `wallets.json` illisible est mis de côté (`wallets.json.bad`) au lieu
+  d'être écrasé par une liste vide.
+- Hors ligne : les derniers cours connus sont conservés et le total reste juste, avec une icône et un
+  message « Hors ligne — derniers cours connus du … ».
+- Synchro de fond : seuls les cours des portefeuilles et de l'accueil sont téléchargés puis gardés ;
+  appels limités à 10 s et 4 portefeuilles en parallèle.
+- Graphiques : « 24 h » affiche bien 24 h (seul « 1 h » est limité aux 65 dernières minutes) ; le cache
+  de graphiques est plafonné.
+- Verrou : la vérification du code quitte le fil principal ; l'empreinte / le code du téléphone
+  redeviennent disponibles en plus du PIN ou du schéma.
+- QR code : confirmation et avertissement quand le portefeuille contient une clé d'affichage Monero.
+- Import : la boîte de résultat détaille chaque portefeuille écarté (crypto inconnue, adresse
+  invalide, doublon…).
+- Scan QR : résultat renvoyé sur le fil principal et une image sur cinq analysée.
+- Toutes les boîtes de dialogue : croix de fermeture à droite du titre, sans bouton « Fermer » (ni
+  « Annuler ») en bas ; les actions principales (Supprimer, Exporter, Importer…) restent.
+- Menus d'appui long (portefeuille, marché) : popup compact de 180 dp, titre 16 sp, actions serrées et
+  grisées quand elles ne s'appliquent pas.
+- Sauvegarde cloud Android désactivée : les adresses, la clé d'affichage et les clés API restent sur
+  l'appareil.
+- Nettoyage : dépendances inutilisées retirées, PBKDF2 factorisé, tests unitaires des formats.
+
 ## 1.5 — 2026-11-18
 
 - Accueil : appui long sur un portefeuille pour le déplacer vers le haut ou le bas, ou le supprimer.

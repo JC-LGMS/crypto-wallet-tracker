@@ -95,6 +95,7 @@ data class HistoryPage(
 data class Point(val time: Long, val value: Double)
 
 /** Cours en USD + variation 24 h + logo (URL CoinGecko) + mini-courbe 7 j. */
+@Serializable
 data class Market(
     val priceUsd: Double? = null,
     val change24h: Double? = null,
@@ -103,6 +104,7 @@ data class Market(
 )
 
 /** Taux de conversion depuis 1 USD (BTC/ETH = quantité de crypto). */
+@Serializable
 data class Rates(val byCurrency: Map<Currency, Double>) {
     fun rate(currency: Currency): Double = byCurrency[currency] ?: 1.0
 }

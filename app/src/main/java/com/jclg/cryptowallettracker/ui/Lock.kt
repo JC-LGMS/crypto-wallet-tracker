@@ -15,6 +15,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -22,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,6 +34,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.jclg.cryptowallettracker.data.LockType
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.min
 
 /** Grille 3 × 3 : le tracé renvoie la suite des points (0 à 8). */
@@ -111,7 +116,12 @@ private fun dotAt(position: Offset, width: Float, height: Float): Int? {
 }
 
 @Composable
-fun LockScreen(type: LockType, verify: (String) -> Boolean, onUnlocked: () -> Unit) {
+fun LockScreen(
+    type: LockType,
+    verify: (String) -> Boolean,
+    onBiometric: (() -> Unit)?,
+    onUnlocked: () -> Unit,
+) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -129,6 +139,11 @@ fun LockScreen(type: LockType, verify: (String) -> Boolean, onUnlocked: () -> Un
                 LockType.PATTERN -> PatternUnlock(verify, onUnlocked)
                 LockType.NONE -> Unit
             }
+            onBiometric?.let { unlock ->
+                OutlinedButton(onClick = unlock, modifier = Modifier.fillMaxWidth()) {
+                    Text("Empreinte ou code du téléphone")
+                }
+            }
         }
     }
 }
@@ -137,11 +152,20 @@ fun LockScreen(type: LockType, verify: (String) -> Boolean, onUnlocked: () -> Un
 private fun PinUnlock(verify: (String) -> Boolean, onUnlocked: () -> Unit) {
     var code by remember { mutableStateOf("") }
     var error by remember { mutableStateOf(false) }
+    var checking by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     fun submit() {
-        if (verify(code)) onUnlocked() else {
-            error = true
-            code = ""
+        if (checking) return
+        checking = true
+        scope.launch {
+            // PBKDF2 : hors du fil principal, sinon l'interface se fige.
+            val ok = withContext(Dispatchers.Default) { verify(code) }
+            checking = false
+            if (ok) onUnlocked() else {
+                error = true
+                code = ""
+            }
         }
     }
 
@@ -163,12 +187,16 @@ private fun PinUnlock(verify: (String) -> Boolean, onUnlocked: () -> Unit) {
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
         modifier = Modifier.fillMaxWidth(),
     )
-    Button(onClick = { submit() }, enabled = code.isNotEmpty()) { Text("Déverrouiller") }
+    Button(onClick = { submit() }, enabled = code.isNotEmpty() && !checking) {
+        Text(if (checking) "Vérification…" else "Déverrouiller")
+    }
 }
 
 @Composable
 private fun PatternUnlock(verify: (String) -> Boolean, onUnlocked: () -> Unit) {
     var error by remember { mutableStateOf(false) }
+    var checking by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     Text(
         if (error) "Schéma incorrect" else "Dessinez votre schéma",
@@ -176,8 +204,16 @@ private fun PatternUnlock(verify: (String) -> Boolean, onUnlocked: () -> Unit) {
         color = if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
     )
     PatternInput(Modifier.fillMaxWidth().aspectRatio(1f)) { pattern ->
-        error = !verify(pattern)
-        if (!error) onUnlocked()
+        if (!checking) {
+            checking = true
+            scope.launch {
+                // PBKDF2 : hors du fil principal, sinon l'interface se fige.
+                val ok = withContext(Dispatchers.Default) { verify(pattern) }
+                checking = false
+                error = !ok
+                if (ok) onUnlocked()
+            }
+        }
     }
 }
 
@@ -190,7 +226,7 @@ fun LockSetupDialog(type: LockType, onConfirm: (String) -> Unit, onDismiss: () -
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (type == LockType.PIN) "Choisir un PIN" else "Choisir un schéma") },
+        title = { DialogTitle(if (type == LockType.PIN) "Choisir un PIN" else "Choisir un schéma", onDismiss) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (type == LockType.PIN) {
@@ -260,6 +296,5 @@ fun LockSetupDialog(type: LockType, onConfirm: (String) -> Unit, onDismiss: () -
                 ) { Text("Enregistrer") }
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Annuler") } },
     )
 }

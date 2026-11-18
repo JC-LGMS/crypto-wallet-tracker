@@ -13,7 +13,11 @@ class WalletStore(context: Context) {
     fun load(): List<Wallet> = runCatching {
         json.decodeFromString<List<Wallet>>(file.readText())
             .mapNotNull(::migrate)
-    }.getOrDefault(emptyList())
+    }.getOrElse {
+        // Ne jamais écraser un fichier qu'on n'a pas su lire : on le garde de côté.
+        runCatching { file.renameTo(File(file.parentFile, "wallets.json.bad")) }
+        emptyList()
+    }
 
     /** Les versions 1.0 stockaient un enum `chain` : on le convertit en identifiant de crypto. */
     private fun migrate(wallet: Wallet): Wallet? {
@@ -33,11 +37,10 @@ class WalletStore(context: Context) {
     fun exportJson(wallets: List<Wallet>): String =
         json.encodeToString(wallets.map { WalletPayload.from(it) })
 
-    /** Accepte un export fichier (liste) ou un QR code (objet unique). */
-    fun parseImport(text: String): List<Wallet> {
+    /** Accepte un export fichier (liste) ou un QR code (objet unique) ; rend les entrées brutes. */
+    fun parseImport(text: String): List<WalletPayload> {
         val trimmed = text.trim()
-        val payloads = runCatching { json.decodeFromString<List<WalletPayload>>(trimmed) }.getOrNull()
+        return runCatching { json.decodeFromString<List<WalletPayload>>(trimmed) }.getOrNull()
             ?: listOf(json.decodeFromString<WalletPayload>(trimmed))
-        return payloads.mapNotNull { it.toWallet() }
     }
 }

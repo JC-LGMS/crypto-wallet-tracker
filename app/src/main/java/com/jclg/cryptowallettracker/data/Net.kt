@@ -11,8 +11,8 @@ object Net {
     private val JSON = "application/json".toMediaType()
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(20, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
         .build()
 
     fun get(url: String): String = execute(Request.Builder().url(url).get())

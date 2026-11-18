@@ -46,20 +46,20 @@ seules des adresses publiques sont enregistrées, aucune clé privée.
 - Appui long sur un portefeuille : le déplacer vers le haut ou le bas, ou le supprimer. Appui long sur
   un graphique : même choix ; le bouton + à côté de « Marchés » en ajoute un. L'ordre des deux listes
   est mémorisé.
-- Page À propos (en haut des réglages), changelog, version affichée `v1.5`.
+- Page À propos (en haut des réglages), changelog, version affichée `v1.6`.
 
 ## Installation
 
 APK de release signé :
 
 ```
-dist/CryptoWalletTracker-v1.1-release.apk
+dist/CryptoWalletTracker-v1.6-release.apk
 ```
 
 Transférer sur le téléphone et autoriser l'installation de sources inconnues. Ou :
 
 ```powershell
-& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" install -r dist\CryptoWalletTracker-v1.1-release.apk
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" install -r dist\CryptoWalletTracker-v1.6-release.apk
 ```
 
 Une version de debug (`...-debug.apk`) est aussi produite pour les tests.
@@ -92,7 +92,7 @@ $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 .\gradlew.bat exportReleaseApk
 ```
 
-L'APK nommé est copié dans `dist/CryptoWalletTracker-v1.1-release.apk` (signé, optimisé par R8).
+L'APK nommé est copié dans `dist/CryptoWalletTracker-v1.6-release.apk` (signé, optimisé par R8).
 `exportDebugApk` produit la variante de debug, `assembleDebug` seul l'APK brut.
 Les SDK 34 et build-tools 34.0.0 restent installés pour les autres projets.
 

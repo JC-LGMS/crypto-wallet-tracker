@@ -12,13 +12,17 @@ $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"   # JDK 25, test�
 .\gradlew.bat exportReleaseApk     # APK release signé : dist/CryptoWalletTracker-v<version>-release.apk
 ```
 
+L'APK de release porte toujours son nom complet, même avec un simple `assembleRelease` :
+`app/build/outputs/apk/release/CryptoWalletTracker-v<version>-release.apk`.
+
 La release est signée avec `keystore/cryptowallettracker.jks` (identifiants dans
 `keystore.properties`, tous deux ignorés par git) et optimisée par R8. Garder la même clé pour les
 mises à jour. Les règles R8 indispensables à kotlinx.serialization **et à WorkManager/Room** sont dans
 `app/proguard-rules.pro` : sans elles l'app plante au démarrage
 (`Failed to create an instance of class androidx.work.impl.WorkDatabase`).
 
-JDK 17+ suffit. Pas de tests, pas de lint. Vérification = build + installation sur l'émulateur
+JDK 17+ suffit. `.\gradlew.bat test` lance les tests unitaires des formats (export chiffré,
+verrou, import, adresses). Pas de lint. Vérification = build + installation sur l'émulateur
 (`%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe`), puis
 `adb install -r ...`, `adb shell am force-stop com.jclg.cryptowallettracker`.
 
@@ -146,7 +150,7 @@ Un seul module `:app`, aucune DI, aucune lib de navigation : `MainActivity.kt` g
   Le QR encode un seul payload. `c` accepte encore les anciens noms `ETHEREUM`/`DECRED`/`MONERO`.
   Un export fichier avec code est chiffré en AES-GCM et préfixé `CWT1:` (`ExportCodec`) : l'import
   détecte le préfixe et demande le code. Le QR n'est jamais chiffré.
-- Version : `val appVersionName` dans `app/build.gradle.kts` (affichée `v1.4`, centrée sur l'accueil)
+- Version : `val appVersionName` dans `app/build.gradle.kts` (affichée `v1.6`, centrée sur l'accueil)
   **et** entrée dans `app/src/main/assets/CHANGELOG.md` (les `#` Markdown sont retirés à l'affichage).
 - `versionCode` à incrémenter en même temps.
 - Montants en `Double` à l'affichage ; conversions wei/atoms/drops via `BigDecimal`.

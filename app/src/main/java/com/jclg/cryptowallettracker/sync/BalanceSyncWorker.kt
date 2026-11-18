@@ -26,6 +26,9 @@ import com.jclg.cryptowallettracker.data.SettingsStore
 import com.jclg.cryptowallettracker.data.SnapshotStore
 import com.jclg.cryptowallettracker.data.WalletStore
 import com.jclg.cryptowallettracker.data.coinAmount
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import java.util.concurrent.TimeUnit
 
 /** Synchro périodique des soldes, même application fermée. */
@@ -45,26 +48,44 @@ class BalanceSyncWorker(
         val balances = HashMap<String, BalanceEntry>()
         val changes = mutableListOf<String>()
 
-        runCatching { Markets.snapshot(settings.priceSource, force = true) }
+        // Seulement les cours utiles (portefeuilles + accueil), gardés pour l'affichage hors ligne.
+        val ids = (wallets.map { it.coinId } + settings.homeCharts).distinct()
+        val quotes = runCatching { Markets.quotes(ids) }.getOrNull()
 
-        wallets.forEach { wallet ->
-            val amount = runCatching {
-                Balances.balance(wallet, settings.etherscanKey, settings.beaconchainKey)
-            }.getOrNull()
-            if (amount == null) return@forEach
-            balances[wallet.id] = BalanceEntry(amount, System.currentTimeMillis())
-            val old = previous.balances[wallet.id]
-            if (old != null && old.amount != amount) {
-                val coin = wallet.coin
-                val label = wallet.name.ifBlank { coin?.name ?: wallet.coinId }
-                changes.add(
-                    "$label : ${old.amount.coinAmount()} → ${amount.coinAmount()} ${coin?.symbol.orEmpty()}",
-                )
+        // 10 s par appel (Net), 4 portefeuilles à la fois : 5 lots au pire pour 20 portefeuilles.
+        wallets.chunked(4).forEach { chunk ->
+            coroutineScope {
+                chunk.map { wallet ->
+                    async {
+                        wallet to runCatching {
+                            Balances.balance(wallet, settings.etherscanKey, settings.beaconchainKey)
+                        }.getOrNull()
+                    }
+                }.awaitAll()
+            }.forEach { (wallet, amount) ->
+                if (amount == null) return@forEach
+                balances[wallet.id] = BalanceEntry(amount, System.currentTimeMillis())
+                val old = previous.balances[wallet.id]
+                if (old != null && old.amount != amount) {
+                    val coin = wallet.coin
+                    val label = wallet.name.ifBlank { coin?.name ?: wallet.coinId }
+                    changes.add(
+                        "$label : ${old.amount.coinAmount()} → ${amount.coinAmount()} ${coin?.symbol.orEmpty()}",
+                    )
+                }
             }
         }
 
         previous.balances.forEach { (id, entry) -> balances.putIfAbsent(id, entry) }
-        store.save(BalanceSnapshot(balances, System.currentTimeMillis()))
+        balances.keys.retainAll(wallets.mapTo(HashSet()) { it.id })
+        store.save(
+            BalanceSnapshot(
+                balances = balances,
+                markets = previous.markets + quotes?.markets.orEmpty(),
+                rates = quotes?.rates ?: previous.rates,
+                quotesUpdatedAt = quotes?.fetchedAt ?: previous.quotesUpdatedAt,
+            ),
+        )
 
         if (changes.isNotEmpty()) {
             if (settings.notifyBalanceChange) notifyChanges(context, changes)

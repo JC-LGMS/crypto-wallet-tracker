@@ -33,7 +33,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -296,7 +295,7 @@ fun EditScreen(
     if (coinDialog) {
         AlertDialog(
             onDismissRequest = { coinDialog = false },
-            title = { Text("Choisir une crypto") },
+            title = { DialogTitle("Choisir une crypto") { coinDialog = false } },
             text = {
                 LazyColumn(Modifier.heightIn(max = 430.dp)) {
                     items(addable, key = { it.id }) { option ->
@@ -334,9 +333,7 @@ fun EditScreen(
                     }
                 }
             },
-            confirmButton = {
-                TextButton(onClick = { coinDialog = false }) { Text("Fermer") }
-            },
+            confirmButton = {},
         )
     }
 }

@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -37,7 +38,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -61,6 +61,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.jclg.cryptowallettracker.BuildConfig
 import com.jclg.cryptowallettracker.R
 import com.jclg.cryptowallettracker.data.Balance
@@ -106,6 +107,7 @@ fun HomeScreen(
     var pendingDelete by remember { mutableStateOf<Wallet?>(null) }
     val listState = rememberLazyListState()
     val hidden = state.settings.hideBalances
+    val online = rememberOnline()
     val visibleCoins = state.settings.homeCharts.mapNotNull { id ->
         state.catalog.firstOrNull { it.id == id }
     }
@@ -184,6 +186,31 @@ fun HomeScreen(
                             onToggleHidden = onToggleHidden,
                             onClick = onPickCurrency,
                         )
+                    }
+
+                    if (state.markets.isNotEmpty() && (!online || state.quotesFromCache)) {
+                        item {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.Warning,
+                                    contentDescription = "Cours hors ligne",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    (if (online) {
+                                        "Cours en cache — la mise à jour a échoué"
+                                    } else {
+                                        "Hors ligne — derniers cours connus"
+                                    }) +
+                                        (state.quotesUpdatedAt?.let { " du ${it.dateTimeShort()}" } ?: "") +
+                                        ". Tirez vers le bas pour actualiser.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
                     }
 
                     item {
@@ -305,79 +332,63 @@ fun HomeScreen(
 
     chartMenu?.let { coin ->
         val index = state.settings.homeCharts.indexOf(coin.id)
-        AlertDialog(
-            onDismissRequest = { chartMenu = null },
-            title = { Text("${coin.name} (${coin.symbol})") },
-            text = {
-                Column {
-                    MenuAction("Monter", Icons.Default.KeyboardArrowUp, enabled = index > 0) {
-                        chartMenu = null; onMoveChart(coin.id, -1)
-                    }
-                    MenuAction(
-                        "Descendre",
-                        Icons.Default.KeyboardArrowDown,
-                        enabled = index in 0 until state.settings.homeCharts.lastIndex,
-                    ) {
-                        chartMenu = null; onMoveChart(coin.id, 1)
-                    }
-                    MenuAction(
-                        "Supprimer",
-                        Icons.Default.Delete,
-                        color = MaterialTheme.colorScheme.error,
-                    ) {
-                        chartMenu = null; onToggleChart(coin.id)
-                    }
-                }
-            },
-            confirmButton = {
-                MenuAction("Fermer", Icons.Default.Close) { chartMenu = null }
-            },
-        )
+        LongPressMenu("${coin.name} (${coin.symbol})", onClose = { chartMenu = null }) {
+            MenuAction("Monter", Icons.Default.KeyboardArrowUp, enabled = index > 0) {
+                chartMenu = null; onMoveChart(coin.id, -1)
+            }
+            MenuAction(
+                "Descendre",
+                Icons.Default.KeyboardArrowDown,
+                enabled = index in 0 until state.settings.homeCharts.lastIndex,
+            ) {
+                chartMenu = null; onMoveChart(coin.id, 1)
+            }
+            MenuAction(
+                "Supprimer",
+                Icons.Default.Delete,
+                color = MaterialTheme.colorScheme.error,
+            ) {
+                chartMenu = null; onToggleChart(coin.id)
+            }
+        }
     }
 
     walletMenu?.let { wallet ->
         val index = state.wallets.indexOfFirst { it.id == wallet.id }
-        AlertDialog(
-            onDismissRequest = { walletMenu = null },
-            title = { Text(wallet.name.ifBlank { wallet.coin?.name ?: "Portefeuille" }) },
-            text = {
-                Column {
-                    MenuAction("Monter", Icons.Default.KeyboardArrowUp, enabled = index > 0) {
-                        walletMenu = null; onMoveWallet(wallet, -1)
-                    }
-                    MenuAction(
-                        "Descendre",
-                        Icons.Default.KeyboardArrowDown,
-                        enabled = index in 0 until state.wallets.lastIndex,
-                    ) {
-                        walletMenu = null; onMoveWallet(wallet, 1)
-                    }
-                    MenuAction(
-                        "Supprimer",
-                        Icons.Default.Delete,
-                        color = MaterialTheme.colorScheme.error,
-                    ) {
-                        walletMenu = null; pendingDelete = wallet
-                    }
-                }
-            },
-            confirmButton = {
-                MenuAction("Fermer", Icons.Default.Close) { walletMenu = null }
-            },
-        )
+        LongPressMenu(
+            wallet.name.ifBlank { wallet.coin?.name ?: "Portefeuille" },
+            onClose = { walletMenu = null },
+        ) {
+            MenuAction("Monter", Icons.Default.KeyboardArrowUp, enabled = index > 0) {
+                walletMenu = null; onMoveWallet(wallet, -1)
+            }
+            MenuAction(
+                "Descendre",
+                Icons.Default.KeyboardArrowDown,
+                enabled = index in 0 until state.wallets.lastIndex,
+            ) {
+                walletMenu = null; onMoveWallet(wallet, 1)
+            }
+            MenuAction(
+                "Supprimer",
+                Icons.Default.Delete,
+                color = MaterialTheme.colorScheme.error,
+            ) {
+                walletMenu = null; pendingDelete = wallet
+            }
+        }
     }
 
     pendingDelete?.let { wallet ->
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
-            title = { Text("Supprimer ce portefeuille ?") },
+            title = { DialogTitle("Supprimer ce portefeuille ?") { pendingDelete = null } },
             text = { Text(wallet.name.ifBlank { wallet.coin?.name ?: "" }) },
             confirmButton = {
                 TextButton(onClick = { pendingDelete = null; onDeleteWallet(wallet) }) {
                     Text("Supprimer", color = MaterialTheme.colorScheme.error)
                 }
             },
-            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("Annuler") } },
         )
     }
 }
@@ -390,10 +401,60 @@ private fun MenuAction(
     color: Color? = null,
     onClick: () -> Unit,
 ) {
-    TextButton(onClick = onClick, enabled = enabled) {
-        Icon(icon, contentDescription = null, tint = color ?: LocalContentColor.current)
-        Spacer(Modifier.width(8.dp))
-        Text(label, color = color ?: Color.Unspecified)
+    val tint = when {
+        !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+        color != null -> color
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(12.dp))
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = tint)
+    }
+}
+
+/** Menu d'appui long compact : petite boîte, titre + croix, actions serrées. */
+@Composable
+private fun LongPressMenu(
+    title: String,
+    onClose: () -> Unit,
+    actions: @Composable ColumnScope.() -> Unit,
+) {
+    Dialog(onDismissRequest = onClose) {
+        Surface(
+            shape = RoundedCornerShape(18.dp),
+            tonalElevation = 3.dp,
+            modifier = Modifier.width(180.dp),
+        ) {
+            Column(Modifier.padding(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 10.dp),
+                    )
+                    IconButton(onClick = onClose, modifier = Modifier.size(40.dp)) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Fermer",
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
+                actions()
+            }
+        }
     }
 }
 
@@ -411,7 +472,7 @@ private fun ChartPickerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Ajouter un graphique") },
+        title = { DialogTitle("Ajouter un graphique", onDismiss) },
         text = {
             Column {
                 OutlinedTextField(
@@ -451,7 +512,7 @@ private fun ChartPickerDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Fermer") } },
+        confirmButton = {},
     )
 }
 

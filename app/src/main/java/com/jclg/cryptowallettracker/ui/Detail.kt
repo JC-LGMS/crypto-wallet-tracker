@@ -82,6 +82,7 @@ fun DetailScreen(
     onPickCurrency: () -> Unit,
 ) {
     var confirmDelete by remember { mutableStateOf(false) }
+    var confirmQr by remember { mutableStateOf(false) }
     var sourceDialog by remember { mutableStateOf(false) }
     val uriHandler = LocalUriHandler.current
     val listState = rememberLazyListState()
@@ -173,7 +174,7 @@ fun DetailScreen(
                             Column(Modifier.weight(1f)) {
                                 InfoBlock("Adresse", wallet.address, monospace = true)
                             }
-                            IconButton(onClick = onShowQr) {
+                            IconButton(onClick = { confirmQr = true }) {
                                 Icon(
                                     painter = painterResource(R.drawable.ic_qr),
                                     contentDescription = "QR code du portefeuille",
@@ -304,7 +305,7 @@ fun DetailScreen(
     if (sourceDialog) {
         AlertDialog(
             onDismissRequest = { sourceDialog = false },
-            title = { Text("Source de données") },
+            title = { DialogTitle("Source de données") { sourceDialog = false } },
             text = {
                 Column {
                     coin.sources.forEach { source ->
@@ -333,8 +334,27 @@ fun DetailScreen(
                     }
                 }
             },
+            confirmButton = {},
+        )
+    }
+
+    if (confirmQr) {
+        AlertDialog(
+            onDismissRequest = { confirmQr = false },
+            title = { DialogTitle("Afficher le QR code ?") { confirmQr = false } },
+            text = {
+                Text(
+                    if (wallet.viewKey.isNotBlank()) {
+                        "Ce QR contient l'adresse publique et la clé d'affichage Monero : " +
+                            "qui le photographie peut lire toutes les transactions et le solde de ce " +
+                            "portefeuille, sans pouvoir les dépenser."
+                    } else {
+                        "Ce QR contient l'adresse publique de ce portefeuille."
+                    },
+                )
+            },
             confirmButton = {
-                TextButton(onClick = { sourceDialog = false }) { Text("Fermer") }
+                TextButton(onClick = { confirmQr = false; onShowQr() }) { Text("Afficher") }
             },
         )
     }
@@ -342,15 +362,12 @@ fun DetailScreen(
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Supprimer ce portefeuille ?") },
+            title = { DialogTitle("Supprimer ce portefeuille ?") { confirmDelete = false } },
             text = { Text("Le nom et le commentaire seront perdus.") },
             confirmButton = {
                 TextButton(onClick = { confirmDelete = false; onDelete() }) {
                     Text("Supprimer", color = MaterialTheme.colorScheme.error)
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text("Annuler") }
             },
         )
     }

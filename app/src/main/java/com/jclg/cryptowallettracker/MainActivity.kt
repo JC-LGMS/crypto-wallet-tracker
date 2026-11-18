@@ -5,13 +5,15 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -19,7 +21,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -34,8 +35,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModelProvider
@@ -48,6 +51,7 @@ import com.jclg.cryptowallettracker.ui.AppViewModel
 import com.jclg.cryptowallettracker.ui.ChangelogDialog
 import com.jclg.cryptowallettracker.ui.CurrencyDialog
 import com.jclg.cryptowallettracker.ui.DetailScreen
+import com.jclg.cryptowallettracker.ui.DialogTitle
 import com.jclg.cryptowallettracker.ui.EditScreen
 import com.jclg.cryptowallettracker.ui.HomeScreen
 import com.jclg.cryptowallettracker.ui.ImportCodeDialog
@@ -60,7 +64,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
 
     private val vm: AppViewModel by lazy { ViewModelProvider(this)[AppViewModel::class.java] }
     private var pendingExportCode = ""
@@ -68,12 +72,19 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        pendingExportCode = savedInstanceState?.getString(KEY_EXPORT_CODE).orEmpty()
         setContent {
             val state by vm.state.collectAsState()
             AppTheme(state.settings.theme) {
                 App(vm, state)
             }
         }
+    }
+
+    /** Le code d'export survit à une rotation ou à une mort du processus pendant le sélecteur. */
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString(KEY_EXPORT_CODE, pendingExportCode)
     }
 
     /** Export JSON : requestCode fixe (les ActivityResultLauncher de Compose provoquaient un crash). */
@@ -139,10 +150,36 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** Vrai si le téléphone a une empreinte, un visage ou un code de déverrouillage. */
+    fun canUseDeviceLock(): Boolean =
+        BiometricManager.from(this).canAuthenticate(AUTHENTICATORS) == BiometricManager.BIOMETRIC_SUCCESS
+
+    /** Déverrouillage par empreinte/visage ou code du téléphone, en plus du PIN ou du schéma. */
+    fun promptDeviceUnlock(onSuccess: () -> Unit) {
+        if (!canUseDeviceLock()) return
+        val prompt = BiometricPrompt(
+            this,
+            ContextCompat.getMainExecutor(this),
+            object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                    onSuccess()
+                }
+            },
+        )
+        val info = BiometricPrompt.PromptInfo.Builder()
+            .setTitle("Déverrouiller Crypto Wallet Tracker")
+            .setAllowedAuthenticators(AUTHENTICATORS)
+            .build()
+        runCatching { prompt.authenticate(info) }
+    }
+
     private companion object {
         const val RC_EXPORT = 1001
         const val RC_IMPORT = 1002
         const val RC_NOTIFICATIONS = 1003
+        const val KEY_EXPORT_CODE = "pendingExportCode"
+        val AUTHENTICATORS = BiometricManager.Authenticators.BIOMETRIC_WEAK or
+            BiometricManager.Authenticators.DEVICE_CREDENTIAL
     }
 }
 
@@ -159,6 +196,7 @@ private fun App(vm: AppViewModel, state: UiState) {
 
     var unlocked by rememberSaveable { mutableStateOf(!state.settings.lockEnabled) }
     val lockEnabled by rememberUpdatedState(state.settings.lockEnabled)
+    val canUseDeviceLock = remember(activity) { activity?.canUseDeviceLock() == true }
 
     LaunchedEffect(state.message) {
         state.message?.let {
@@ -193,6 +231,11 @@ private fun App(vm: AppViewModel, state: UiState) {
             type = state.settings.lockType,
             verify = { code ->
                 LockCode.verify(code, state.settings.lockSalt, state.settings.lockCodeHash)
+            },
+            onBiometric = if (canUseDeviceLock) {
+                { activity?.promptDeviceUnlock { unlocked = true } }
+            } else {
+                null
             },
             onUnlocked = { unlocked = true },
         )
@@ -339,10 +382,36 @@ private fun App(vm: AppViewModel, state: UiState) {
         )
     }
 
+    state.importReport?.let { report ->
+        AlertDialog(
+            onDismissRequest = vm::clearImportReport,
+            title = { DialogTitle("Import terminé", vm::clearImportReport) },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    Text(
+                        "${report.added} portefeuille(s) importé(s).",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    if (report.rejected.isNotEmpty()) {
+                        Text(
+                            "${report.rejected.size} écarté(s) :",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                        report.rejected.forEach { reason ->
+                            Text("• $reason", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+        )
+    }
+
     if (state.syncErrors.isNotEmpty()) {
         AlertDialog(
             onDismissRequest = vm::clearSyncErrors,
-            title = { Text("Synchronisation incomplète") },
+            title = { DialogTitle("Synchronisation incomplète", vm::clearSyncErrors) },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     Text(
@@ -355,9 +424,7 @@ private fun App(vm: AppViewModel, state: UiState) {
                     }
                 }
             },
-            confirmButton = {
-                TextButton(onClick = vm::clearSyncErrors) { Text("Fermer") }
-            },
+            confirmButton = {},
         )
     }
 }

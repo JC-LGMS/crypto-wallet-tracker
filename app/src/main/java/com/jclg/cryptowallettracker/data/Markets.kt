@@ -68,7 +68,7 @@ object Markets {
             // Les cryptos suivies mais hors top 100 (Monero, Decred…) ont besoin de leur cours.
             val missing = Coins.all.filter { it.id !in markets }
             if (missing.isNotEmpty()) {
-                runCatching { fetchMissing(missing, markets) }
+                runCatching { fetchMissing(missing.map { it.id }, markets) }
             }
 
             val snapshot = MarketSnapshot(markets, rates(markets), now, buildCatalog(ranked))
@@ -76,6 +76,13 @@ object Markets {
             snapshotSource = source
             snapshot
         }
+
+    /** Cours des seules cryptos utiles (portefeuilles + accueil), pour la synchro de fond. */
+    suspend fun quotes(ids: Collection<String>): MarketSnapshot = withContext(Dispatchers.IO) {
+        val markets = HashMap<String, Market>()
+        fetchMissing(ids, markets)
+        MarketSnapshot(markets, rates(markets), System.currentTimeMillis(), emptyList())
+    }
 
     /** Top 100 par capitalisation : cours, logos, mini-courbes et catalogue. */
     private suspend fun marketsFromCoinGecko(): Pair<HashMap<String, Market>, List<Coin>> {
@@ -96,11 +103,11 @@ object Markets {
         return markets to ranked
     }
 
-    private suspend fun fetchMissing(missing: List<Coin>, markets: HashMap<String, Market>) {
-        val ids = missing.joinToString(",") { it.id }
+    private suspend fun fetchMissing(ids: Collection<String>, markets: HashMap<String, Market>) {
+        if (ids.isEmpty()) return
         val text = Net.get(
             "https://api.coingecko.com/api/v3/coins/markets" +
-                "?vs_currency=usd&ids=$ids&per_page=250&page=1&sparkline=true",
+                "?vs_currency=usd&ids=${ids.joinToString(",")}&per_page=250&page=1&sparkline=true",
         )
         json.parseToJsonElement(text).jsonArray.forEach { element ->
             val o = element.jsonObject
@@ -181,18 +188,20 @@ object Markets {
             }
 
             val fetched = fetchChart(coin, range)
+            if (chartCache.size >= 8) chartCache.clear()
             chartCache[key] = now to fetched
             fetched
         }
 
     private suspend fun fetchChart(coin: Coin, range: ChartRange): ChartData =
         if (!range.long) {
-            ChartData(coinGeckoChart(coin.id, range.days ?: 1), "CoinGecko", System.currentTimeMillis())
+            ChartData(coinGeckoChart(coin.id, range), "CoinGecko", System.currentTimeMillis())
         } else {
             longChart(coin, range)
         }
 
-    private suspend fun coinGeckoChart(coinId: String, days: Int): List<Point> {
+    private suspend fun coinGeckoChart(coinId: String, range: ChartRange): List<Point> {
+        val days = range.days ?: 1
         val text = Net.get(
             "https://api.coingecko.com/api/v3/coins/$coinId/market_chart" +
                 "?vs_currency=usd&days=$days",
@@ -204,7 +213,8 @@ object Markets {
                 val price = values.getOrNull(1)?.jsonPrimitive?.doubleOrNull ?: return@mapNotNull null
                 Point(time, price)
             }
-        return if (days == 1) points.takeLast(13) else points
+        // CoinGecko rend des points de 5 min sur 24 h : « 1 h » n'en garde que les 13 derniers.
+        return if (range == ChartRange.H1) points.takeLast(13) else points
     }
 
     /** 2 ans, 5 ans, max : Binance d'abord, Kraken en secours (XMR, DCR…). */

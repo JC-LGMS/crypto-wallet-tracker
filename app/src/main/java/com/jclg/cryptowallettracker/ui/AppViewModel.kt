@@ -56,6 +56,10 @@ data class UiState(
     /** Un import chiffré attend son code. */
     val importLocked: Boolean = false,
     val importError: String? = null,
+    /** Les cours affichés viennent du disque : la dernière synchro des cours a échoué. */
+    val quotesFromCache: Boolean = false,
+    /** Résultat détaillé du dernier import. */
+    val importReport: ImportReport? = null,
 ) {
     fun price(coinId: String): Double? =
         markets[coinId]?.priceUsd?.let { it * rates.rate(settings.currency) }
@@ -81,6 +85,9 @@ data class UiState(
 
 data class TotalSummary(val value: Double, val incomplete: Boolean)
 
+/** Portefeuilles importés, et détail de ceux qui ont été écartés (avec la raison). */
+data class ImportReport(val added: Int, val rejected: List<String>)
+
 class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val store = WalletStore(app)
     private val settingsStore = SettingsStore(app)
@@ -95,12 +102,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         val saved = snapshotStore.load()
-        if (saved.balances.isNotEmpty()) {
+        if (saved.balances.isNotEmpty() || saved.markets.isNotEmpty()) {
             _state.update { s ->
                 s.copy(
                     balances = s.balances + saved.balances.mapValues { (_, entry) ->
                         Balance(amount = entry.amount, updatedAt = entry.updatedAt)
                     },
+                    markets = saved.markets.ifEmpty { s.markets },
+                    rates = Rates(saved.rates.byCurrency.ifEmpty { s.rates.byCurrency }),
+                    quotesUpdatedAt = saved.quotesUpdatedAt ?: s.quotesUpdatedAt,
                 )
             }
         }
@@ -192,11 +202,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         rates = snapshot.rates,
                         quotesUpdatedAt = snapshot.fetchedAt,
                         catalog = snapshot.catalog,
+                        quotesFromCache = false,
                     )
                 }
             }
             .onFailure { e ->
                 failures.add("Cours, variations et mini-courbes — ${source.label} (${e.friendly()})")
+                // Cours en cache : on les garde et on le signale sur l'accueil.
+                _state.update { if (it.markets.isEmpty()) it else it.copy(quotesFromCache = true) }
             }
         quotesLoading = false
     }
@@ -239,6 +252,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                             rates = snapshot.rates,
                             quotesUpdatedAt = snapshot.fetchedAt,
                             catalog = snapshot.catalog,
+                            quotesFromCache = false,
                         )
                     }
                     LogoLoader.clear()
@@ -350,8 +364,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             updateSettings { it.copy(lockType = type, lockSalt = "", lockCodeHash = "") }
             return
         }
-        val (salt, hash) = LockCode.hash(code)
-        updateSettings { it.copy(lockType = type, lockSalt = salt, lockCodeHash = hash) }
+        viewModelScope.launch {
+            // PBKDF2 : hors du fil principal, sinon l'interface se fige.
+            val (salt, hash) = withContext(Dispatchers.Default) { LockCode.hash(code) }
+            updateSettings { it.copy(lockType = type, lockSalt = salt, lockCodeHash = hash) }
+        }
     }
 
     fun setEtherscanKey(key: String) = updateSettings { it.copy(etherscanKey = key.trim()) }
@@ -400,20 +417,41 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun importText(text: String) {
         runCatching { store.parseImport(text) }
-            .onSuccess { imported ->
+            .onSuccess { payloads ->
                 val existing = _state.value.wallets
-                val added = imported
-                    .filter { it.address.isNotBlank() && Coins.byId(it.coinId)?.sources?.isNotEmpty() == true }
-                    .filterNot { new -> existing.any { it.coinId == new.coinId && it.address.equals(new.address, true) } }
-                if (added.isEmpty()) {
-                    showMessage("Aucun nouveau portefeuille à importer")
-                    return
+                val added = mutableListOf<Wallet>()
+                val rejected = mutableListOf<String>()
+                payloads.forEach { payload ->
+                    val wallet = payload.toWallet()
+                    val coin = wallet?.coin
+                    val reason = when {
+                        wallet == null || coin == null -> "crypto inconnue"
+                        wallet.address.isBlank() -> "adresse vide"
+                        coin.sources.isEmpty() -> "crypto sans source de solde"
+                        !coin.matchesAddress(wallet.address) -> "adresse ${coin.symbol} invalide"
+                        (existing + added).any {
+                            it.coinId == wallet.coinId && it.address.equals(wallet.address, true)
+                        } -> "déjà présent"
+                        else -> null
+                    }
+                    if (wallet != null && reason == null) {
+                        added += wallet
+                    } else {
+                        val label = "${coin?.symbol ?: payload.c} ${payload.a.trim().take(12)}…"
+                        rejected += "$label : $reason"
+                    }
                 }
-                persist(existing + added)
-                sync(force = true)
-                showMessage("${added.size} portefeuille(s) importé(s)")
+                if (added.isNotEmpty()) {
+                    persist(existing + added)
+                    sync(force = true)
+                }
+                _state.update { it.copy(importReport = ImportReport(added.size, rejected)) }
             }
             .onFailure { e -> showMessage("Import impossible : ${e.friendly()}") }
+    }
+
+    fun clearImportReport() {
+        _state.update { it.copy(importReport = null) }
     }
 
     fun exportTo(uri: Uri, code: String = "") {
@@ -451,15 +489,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun importEncrypted(code: String) {
         val text = pendingImport ?: return
-        runCatching { ExportCodec.decrypt(text, code) }
-            .onSuccess { plain ->
+        viewModelScope.launch {
+            // PBKDF2 : hors du fil principal, sinon l'interface se fige.
+            val result = withContext(Dispatchers.Default) { runCatching { ExportCodec.decrypt(text, code) } }
+            result.onSuccess { plain ->
                 pendingImport = null
                 _state.update { it.copy(importLocked = false, importError = null) }
                 importText(plain)
-            }
-            .onFailure { e ->
+            }.onFailure { e ->
                 _state.update { it.copy(importError = e.message ?: "code incorrect") }
             }
+        }
     }
 
     fun cancelImportCode() {
@@ -490,11 +530,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(wallets = wallets) }
     }
 
-    private fun persistSnapshot() {
-        val balances = _state.value.balances.mapNotNull { (id, balance) ->
+    private suspend fun persistSnapshot() {
+        val s = _state.value
+        val balances = s.balances.mapNotNull { (id, balance) ->
             balance.amount?.let { id to BalanceEntry(it, balance.updatedAt ?: System.currentTimeMillis()) }
         }.toMap()
-        snapshotStore.save(BalanceSnapshot(balances, System.currentTimeMillis()))
+        // L'écriture (cours inclus) est trop grosse pour le fil principal.
+        withContext(Dispatchers.IO) {
+            snapshotStore.save(
+                BalanceSnapshot(
+                    balances = balances,
+                    markets = s.markets,
+                    rates = s.rates,
+                    quotesUpdatedAt = s.quotesUpdatedAt,
+                ),
+            )
+        }
     }
 
     private companion object {
