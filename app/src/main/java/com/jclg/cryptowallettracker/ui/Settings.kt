@@ -52,7 +52,6 @@ fun SettingsScreen(
     onTheme: (ThemeMode) -> Unit,
     onCurrency: (Currency) -> Unit,
     onPriceSource: (PriceSource) -> Unit,
-    onToggleChart: (String) -> Unit,
     onAbout: () -> Unit,
     onVersionClick: () -> Unit,
     onBackgroundSync: (Int) -> Unit,
@@ -221,35 +220,6 @@ fun SettingsScreen(
                     checked = state.settings.notifyBalanceChange,
                     onChange = { enabled -> onNotify(enabled) },
                 )
-
-                SectionTitle("Cryptos sur l'accueil")
-                Text(
-                    "Affiche le cours de la crypto et sa mini-courbe sur 7 jours. Décochez pour la masquer.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                state.catalog.sortedBy { it.name }.forEach { coin ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onToggleChart(coin.id) }
-                            .padding(vertical = 3.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        CoinLogo(coin, state.markets[coin.id]?.image, 28.dp)
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            "${coin.name} (${coin.symbol})",
-                            style = MaterialTheme.typography.bodyMedium,
-                            maxLines = 1,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Switch(
-                            checked = coin.id in state.settings.homeCharts,
-                            onCheckedChange = { onToggleChart(coin.id) },
-                        )
-                    }
-                }
 
                 Text(
                     "v${BuildConfig.VERSION_NAME}",

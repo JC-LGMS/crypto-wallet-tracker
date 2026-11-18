@@ -60,9 +60,10 @@ Un seul module `:app`, aucune DI, aucune lib de navigation : `MainActivity.kt` g
 ## Règles de conception
 
 - L'accueil n'affiche **jamais** l'adresse d'un portefeuille (uniquement nom, source, commentaire, solde).
-- L'accueil ne liste que les cryptos cochées dans `Settings.homeCharts` (sinon message d'invite) ;
-  le + à côté de « Marchés » et l'appui long sur un graphique modifient ce même réglage, qui est une
-  **liste ordonnée** (l'ordre d'affichage est celui de la liste, pas l'ordre alphabétique).
+- L'accueil ne liste que les cryptos de `Settings.homeCharts` (sinon message d'invite) ; le + à côté
+  de « Marchés » et l'appui long sur un graphique modifient ce même réglage, qui est une **liste
+  ordonnée** (l'ordre d'affichage est celui de la liste, pas l'ordre alphabétique). Les réglages ne
+  proposent plus de liste de cryptos.
 - L'ordre des portefeuilles est celui de la liste `wallets` (`AppViewModel.moveWallet`) : l'accueil ne
   retrie jamais les portefeuilles par nom.
 - Plusieurs portefeuilles peuvent partager la même crypto ; l'import déduplique sur `coinId + adresse`.

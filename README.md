@@ -37,7 +37,7 @@ seules des adresses publiques sont enregistrées, aucune clé privée.
   Binance (ou Kraken) pour 2 ans, 5 ans et max.
 - Graphiques interactifs (1 h, 24 h, 7 j, 30 j, 1 an, 2 ans, 5 ans, max) : axes gradués, appui ou
   glissement pour lire le cours d'un point, source affichée sous la courbe, période mémorisée par
-  crypto. L'accueil n'affiche que les cryptos cochées dans les réglages.
+  crypto. L'accueil n'affiche que les cryptos ajoutées avec le + de la section Marchés.
 - Historique des transactions pour Ethereum (source Blockscout), Bitcoin et Decred, avec lien vers
   l'explorateur et message quand seules les transactions les plus récentes sont affichées.
 - Export / import des portefeuilles par fichier JSON ; le QR affiché sur une fiche sert à partager un

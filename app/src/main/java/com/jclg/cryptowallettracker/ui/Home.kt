@@ -21,6 +21,10 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -33,6 +37,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -50,6 +55,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -304,20 +310,28 @@ fun HomeScreen(
             title = { Text("${coin.name} (${coin.symbol})") },
             text = {
                 Column {
-                    TextButton(
-                        onClick = { chartMenu = null; onMoveChart(coin.id, -1) },
-                        enabled = index > 0,
-                    ) { Text("Monter") }
-                    TextButton(
-                        onClick = { chartMenu = null; onMoveChart(coin.id, 1) },
+                    MenuAction("Monter", Icons.Default.KeyboardArrowUp, enabled = index > 0) {
+                        chartMenu = null; onMoveChart(coin.id, -1)
+                    }
+                    MenuAction(
+                        "Descendre",
+                        Icons.Default.KeyboardArrowDown,
                         enabled = index in 0 until state.settings.homeCharts.lastIndex,
-                    ) { Text("Descendre") }
-                    TextButton(onClick = { chartMenu = null; onToggleChart(coin.id) }) {
-                        Text("Supprimer", color = MaterialTheme.colorScheme.error)
+                    ) {
+                        chartMenu = null; onMoveChart(coin.id, 1)
+                    }
+                    MenuAction(
+                        "Supprimer",
+                        Icons.Default.Delete,
+                        color = MaterialTheme.colorScheme.error,
+                    ) {
+                        chartMenu = null; onToggleChart(coin.id)
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { chartMenu = null }) { Text("Fermer") } },
+            confirmButton = {
+                MenuAction("Fermer", Icons.Default.Close) { chartMenu = null }
+            },
         )
     }
 
@@ -328,20 +342,28 @@ fun HomeScreen(
             title = { Text(wallet.name.ifBlank { wallet.coin?.name ?: "Portefeuille" }) },
             text = {
                 Column {
-                    TextButton(
-                        onClick = { walletMenu = null; onMoveWallet(wallet, -1) },
-                        enabled = index > 0,
-                    ) { Text("Monter") }
-                    TextButton(
-                        onClick = { walletMenu = null; onMoveWallet(wallet, 1) },
+                    MenuAction("Monter", Icons.Default.KeyboardArrowUp, enabled = index > 0) {
+                        walletMenu = null; onMoveWallet(wallet, -1)
+                    }
+                    MenuAction(
+                        "Descendre",
+                        Icons.Default.KeyboardArrowDown,
                         enabled = index in 0 until state.wallets.lastIndex,
-                    ) { Text("Descendre") }
-                    TextButton(onClick = { walletMenu = null; pendingDelete = wallet }) {
-                        Text("Supprimer", color = MaterialTheme.colorScheme.error)
+                    ) {
+                        walletMenu = null; onMoveWallet(wallet, 1)
+                    }
+                    MenuAction(
+                        "Supprimer",
+                        Icons.Default.Delete,
+                        color = MaterialTheme.colorScheme.error,
+                    ) {
+                        walletMenu = null; pendingDelete = wallet
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { walletMenu = null }) { Text("Fermer") } },
+            confirmButton = {
+                MenuAction("Fermer", Icons.Default.Close) { walletMenu = null }
+            },
         )
     }
 
@@ -357,6 +379,21 @@ fun HomeScreen(
             },
             dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("Annuler") } },
         )
+    }
+}
+
+@Composable
+private fun MenuAction(
+    label: String,
+    icon: ImageVector,
+    enabled: Boolean = true,
+    color: Color? = null,
+    onClick: () -> Unit,
+) {
+    TextButton(onClick = onClick, enabled = enabled) {
+        Icon(icon, contentDescription = null, tint = color ?: LocalContentColor.current)
+        Spacer(Modifier.width(8.dp))
+        Text(label, color = color ?: Color.Unspecified)
     }
 }
 

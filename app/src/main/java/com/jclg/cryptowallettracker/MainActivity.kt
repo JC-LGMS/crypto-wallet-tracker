@@ -230,7 +230,6 @@ private fun App(vm: AppViewModel, state: UiState) {
                 onTheme = vm::setTheme,
                 onCurrency = vm::setCurrency,
                 onPriceSource = vm::setPriceSource,
-                onToggleChart = vm::toggleHomeChart,
                 onAbout = { route = "about" },
                 onVersionClick = { changelogOpen = true },
                 onBackgroundSync = vm::setBackgroundSyncHours,

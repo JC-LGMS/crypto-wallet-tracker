@@ -5,7 +5,8 @@
 - Accueil : appui long sur un portefeuille pour le déplacer vers le haut ou le bas, ou le supprimer.
 - Accueil : bouton + à côté de « Marchés » pour ajouter un graphique (liste filtrable) ; appui long sur
   un graphique pour le déplacer vers le haut ou le bas, ou le retirer. L'ordre des graphiques est
-  mémorisé.
+  mémorisé. Les menus d'appui long ont des icônes.
+- Réglages : la section « Cryptos sur l'accueil » (doublon de l'accueil) est retirée.
 
 ## 1.4 — 2026-11-18
 
