@@ -380,6 +380,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Déplace une crypto de [delta] rangs parmi les graphiques de l'accueil. */
+    fun moveChart(coinId: String, delta: Int) {
+        val current = _state.value.settings.homeCharts
+        val from = current.indexOf(coinId)
+        val to = from + delta
+        if (from < 0 || to !in current.indices) return
+        val list = current.toMutableList()
+        list.add(to, list.removeAt(from))
+        updateSettings { it.copy(homeCharts = list) }
+    }
+
     /** Mémorise la période du graphique pour chaque crypto. */
     fun setChartRange(coinId: String, range: ChartRange) {
         updateSettings { settings ->

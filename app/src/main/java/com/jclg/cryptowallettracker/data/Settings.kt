@@ -17,8 +17,8 @@ data class Settings(
     val theme: ThemeMode = ThemeMode.SYSTEM,
     val currency: Currency = Currency.EUR,
     val priceSource: PriceSource = PriceSource.COINGECKO,
-    /** Cryptos affichées sur l'accueil (avec leur mini-courbe 7 j). */
-    val homeCharts: Set<String> = emptySet(),
+    /** Cryptos affichées sur l'accueil (avec leur mini-courbe 7 j), dans l'ordre choisi. */
+    val homeCharts: List<String> = emptyList(),
     /** Période de graphique mémorisée par crypto (nom de ChartRange). */
     val chartRanges: Map<String, String> = emptyMap(),
     /** Synchro de fond toutes les N heures (0 = désactivée). */

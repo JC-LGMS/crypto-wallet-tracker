@@ -219,6 +219,7 @@ private fun App(vm: AppViewModel, state: UiState) {
                 onRefreshLogos = vm::refreshLogos,
                 onToggleHidden = { vm.setHideBalances(!state.settings.hideBalances) },
                 onToggleChart = vm::toggleHomeChart,
+                onMoveChart = vm::moveChart,
                 onMoveWallet = vm::moveWallet,
                 onDeleteWallet = vm::delete,
             )

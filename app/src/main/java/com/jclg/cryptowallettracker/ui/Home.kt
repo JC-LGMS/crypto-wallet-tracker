@@ -88,19 +88,21 @@ fun HomeScreen(
     onRefreshLogos: () -> Unit,
     onToggleHidden: () -> Unit,
     onToggleChart: (String) -> Unit,
+    onMoveChart: (String, Int) -> Unit,
     onMoveWallet: (Wallet, Int) -> Unit,
     onDeleteWallet: (Wallet) -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     var exportDialog by remember { mutableStateOf(false) }
     var chartPicker by remember { mutableStateOf(false) }
+    var chartMenu by remember { mutableStateOf<Coin?>(null) }
     var walletMenu by remember { mutableStateOf<Wallet?>(null) }
     var pendingDelete by remember { mutableStateOf<Wallet?>(null) }
     val listState = rememberLazyListState()
     val hidden = state.settings.hideBalances
-    val visibleCoins = state.catalog
-        .filter { it.id in state.settings.homeCharts }
-        .sortedBy { it.name }
+    val visibleCoins = state.settings.homeCharts.mapNotNull { id ->
+        state.catalog.firstOrNull { it.id == id }
+    }
 
     Scaffold { padding ->
         Box(
@@ -246,7 +248,7 @@ fun HomeScreen(
                             currency = state.settings.currency,
                             sparkline = state.markets[coin.id]?.sparkline,
                             onClick = { onOpenPrice(coin.id) },
-                            onLongClick = { onToggleChart(coin.id) },
+                            onLongClick = { chartMenu = coin },
                         )
                     }
 
@@ -295,6 +297,30 @@ fun HomeScreen(
         )
     }
 
+    chartMenu?.let { coin ->
+        val index = state.settings.homeCharts.indexOf(coin.id)
+        AlertDialog(
+            onDismissRequest = { chartMenu = null },
+            title = { Text("${coin.name} (${coin.symbol})") },
+            text = {
+                Column {
+                    TextButton(
+                        onClick = { chartMenu = null; onMoveChart(coin.id, -1) },
+                        enabled = index > 0,
+                    ) { Text("Monter") }
+                    TextButton(
+                        onClick = { chartMenu = null; onMoveChart(coin.id, 1) },
+                        enabled = index in 0 until state.settings.homeCharts.lastIndex,
+                    ) { Text("Descendre") }
+                    TextButton(onClick = { chartMenu = null; onToggleChart(coin.id) }) {
+                        Text("Supprimer", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { chartMenu = null }) { Text("Fermer") } },
+        )
+    }
+
     walletMenu?.let { wallet ->
         val index = state.wallets.indexOfFirst { it.id == wallet.id }
         AlertDialog(
@@ -337,7 +363,7 @@ fun HomeScreen(
 @Composable
 private fun ChartPickerDialog(
     coins: List<Coin>,
-    selected: Set<String>,
+    selected: Collection<String>,
     onPick: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {

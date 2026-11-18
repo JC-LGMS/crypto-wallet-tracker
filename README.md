@@ -44,7 +44,8 @@ seules des adresses publiques sont enregistrées, aucune clé privée.
   portefeuille. Un **code optionnel** chiffre l'export (AES-GCM) et est demandé à l'import.
 - Listes de cryptos triées par ordre alphabétique (accueil et ajout).
 - Appui long sur un portefeuille : le déplacer vers le haut ou le bas, ou le supprimer. Appui long sur
-  un graphique : le retirer ; le bouton + à côté de « Marchés » en ajoute un.
+  un graphique : même choix ; le bouton + à côté de « Marchés » en ajoute un. L'ordre des deux listes
+  est mémorisé.
 - Page À propos (en haut des réglages), changelog, version affichée `v1.5`.
 
 ## Installation

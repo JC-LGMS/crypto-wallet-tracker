@@ -3,8 +3,9 @@
 ## 1.5 — 2026-11-18
 
 - Accueil : appui long sur un portefeuille pour le déplacer vers le haut ou le bas, ou le supprimer.
-- Accueil : bouton + à côté de « Marchés » pour ajouter un graphique (liste filtrable), appui long sur
-  un graphique pour le retirer.
+- Accueil : bouton + à côté de « Marchés » pour ajouter un graphique (liste filtrable) ; appui long sur
+  un graphique pour le déplacer vers le haut ou le bas, ou le retirer. L'ordre des graphiques est
+  mémorisé.
 
 ## 1.4 — 2026-11-18
 
