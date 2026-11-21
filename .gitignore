@@ -7,7 +7,6 @@ local.properties
 captures/
 .externalNativeBuild/
 .cxx/
-dist/
 keystore.properties
 keystore/
 

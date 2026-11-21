@@ -1,5 +1,57 @@
 # Journal des modifications
 
+## 1.11 - 2026-11-22
+
+- Confidentialité : l'aperçu de l'application dans les récents ne montre plus les portefeuilles
+  avant l'écran de verrouillage.
+- Verrou : l'application se verrouille dès la mise en pause (changement d'application), et plus
+  seulement à l'arrêt complet.
+
+## 1.10 - 2026-11-22
+
+- Mode leurre : les marchés de l'accueil peuvent être ajoutés, déplacés et retirés, avec une liste
+  propre au leurre ; la liste réelle n'est pas modifiée.
+- Mode leurre : les clés API et le reste des réglages restent accessibles comme en mode normal ;
+  seul le réglage du leurre est masqué.
+
+## 1.9 - 2026-11-21
+
+- Mode leurre : l'empreinte ou le visage ouvre uniquement les données factices ; le vrai code
+  reste nécessaire pour les vraies données.
+- Mode leurre : ajout, modification, suppression, import et export fonctionnent sur un jeu de
+  données séparé (`decoy-wallets.json`) sans toucher aux vrais portefeuilles.
+- Mode leurre : le code peut être modifié depuis les réglages, sans indiquer qu'il s'agit du leurre.
+- Mode leurre : le changelog ne s'ouvre plus en touchant le numéro de version.
+
+## 1.8 - 2026-11-20
+
+- Sécurité : un code de leurre, saisi à l'écran de verrouillage à la place du vrai code, affiche
+  4 portefeuilles (BTC, ETH, SOL, XRP) et 4 marchés factices. Les vrais portefeuilles restent cachés.
+- Mode leurre : navigation normale sur les données factices, mais ajout, modification, suppression,
+  import/export et sections sensibles des réglages (clés API, verrou) sont neutralisés ou masqués.
+  L'empreinte ou le vrai code ouvrent les vraies données.
+- Le code de leurre doit être différent du code de l'application et nécessite un PIN ou un schéma.
+
+## 1.7 - 2026-11-20
+
+- Verrou : l'empreinte/le visage est accepté (biométrie forte ou faible) ; le code du téléphone
+  ne contourne plus le PIN ou le schéma de l'application.
+- Portefeuilles : une entrée abîmée de `wallets.json` ne cache plus les autres portefeuilles.
+- Hors ligne : l'interface et la synchro de fond fusionnent leurs écritures de `snapshot.json` au
+  lieu de s'écraser.
+- Cours : un seul appel réseau à la fois entre l'interface et le worker (moins d'erreurs 429).
+- Monero : clé d'affichage validée en hexadécimal ; l'export lisible signale qu'elle peut être
+  incluse.
+- Graphiques : les périodes 2 ans / 5 ans / max passent par Binance pour les cryptos récentes.
+- Synchro : la flèche d'actualisation tourne pendant le chargement ; le rond du pull-to-refresh
+  n'apparaît que pendant le geste et disparaît au relâchement.
+- Synchro : la barre d'avancement suit les portefeuilles terminés et la flèche continue de tourner,
+  même quand les animations système sont désactivées.
+- Divers : textes corrigés, code mort supprimé, User-Agent Chrome standard.
+- Réglages : précision sur l'empreinte/le visage (proposé sur l'écran de verrouillage si une
+  biométrie est enrôlée dans Android).
+- Build : un seul APK par variante (sortie Gradle) ; plus de copie dans `dist/`.
+
 ## 1.6 - 2026-11-18
 
 - Export : le code saisi avant le choix du fichier survit à une rotation ou à une fermeture de l'app.

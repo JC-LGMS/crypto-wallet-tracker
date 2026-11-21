@@ -9,6 +9,9 @@ import java.util.concurrent.TimeUnit
 /** Petit client HTTP partagé ; toujours appelé depuis Dispatchers.IO. */
 object Net {
     private val JSON = "application/json".toMediaType()
+    private const val USER_AGENT =
+        "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) " +
+            "Chrome/131.0.0.0 Mobile Safari/537.36"
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
@@ -21,7 +24,7 @@ object Net {
         execute(Request.Builder().url(url).post(body.toRequestBody(JSON)))
 
     private fun execute(builder: Request.Builder): String {
-        val request = builder.header("User-Agent", "CryptoWalletTracker/1.0").build()
+        val request = builder.header("User-Agent", USER_AGENT).build()
         client.newCall(request).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) throw ApiException(response.code, body)

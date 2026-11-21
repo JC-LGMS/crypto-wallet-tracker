@@ -19,16 +19,41 @@ data class BalanceSnapshot(
     val quotesUpdatedAt: Long? = null,
 )
 
-class SnapshotStore(context: Context) {
-    private val file = File(context.filesDir, "snapshot.json")
+class SnapshotStore(context: Context, fileName: String = "snapshot.json") {
+    private val file = File(context.filesDir, fileName)
     private val json = Json { ignoreUnknownKeys = true }
 
-    fun load(): BalanceSnapshot = runCatching {
+    fun load(): BalanceSnapshot = synchronized(LOCK) { read() }
+
+    /** Fusionne avec l'état du disque : l'interface et le worker écrivent tous les deux. */
+    fun save(snapshot: BalanceSnapshot) {
+        synchronized(LOCK) {
+            runCatching { file.writeText(json.encodeToString(merge(read(), snapshot))) }
+        }
+    }
+
+    private fun read(): BalanceSnapshot = runCatching {
         json.decodeFromString<BalanceSnapshot>(file.readText())
     }.getOrDefault(BalanceSnapshot())
 
-    fun save(snapshot: BalanceSnapshot) {
-        runCatching { file.writeText(json.encodeToString(snapshot)) }
+    private fun merge(old: BalanceSnapshot, new: BalanceSnapshot): BalanceSnapshot {
+        val balances = HashMap(old.balances)
+        new.balances.forEach { (id, entry) ->
+            val current = balances[id]
+            if (current == null || entry.updatedAt >= current.updatedAt) balances[id] = entry
+        }
+        val newer = if ((new.quotesUpdatedAt ?: 0) >= (old.quotesUpdatedAt ?: 0)) new else old
+        val older = if (newer === new) old else new
+        return BalanceSnapshot(
+            balances = balances,
+            markets = newer.markets.ifEmpty { older.markets },
+            rates = if (newer.rates.byCurrency.isEmpty()) older.rates else newer.rates,
+            quotesUpdatedAt = newer.quotesUpdatedAt ?: older.quotesUpdatedAt,
+        )
+    }
+
+    private companion object {
+        val LOCK = Any()
     }
 }
 
@@ -36,9 +61,13 @@ class SnapshotStore(context: Context) {
 object WalletCodec {
     private val json = Json { ignoreUnknownKeys = true }
 
-    fun decode(text: String): WalletPayload? {
+    /** Accepte un export fichier (liste) ou un QR code (objet unique). */
+    fun decodeAll(text: String): List<WalletPayload> {
         val trimmed = text.trim()
-        return runCatching { json.decodeFromString<WalletPayload>(trimmed) }.getOrNull()
-            ?: runCatching { json.decodeFromString<List<WalletPayload>>(trimmed) }.getOrNull()?.firstOrNull()
+        return runCatching { json.decodeFromString<List<WalletPayload>>(trimmed) }.getOrNull()
+            ?: listOf(json.decodeFromString<WalletPayload>(trimmed))
     }
+
+    fun decode(text: String): WalletPayload? =
+        runCatching { decodeAll(text) }.getOrNull()?.firstOrNull()
 }

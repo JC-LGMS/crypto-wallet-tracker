@@ -3,20 +3,28 @@ package com.jclg.cryptowallettracker.data
 import android.content.Context
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.jsonArray
 import java.io.File
 
 /** Stockage local : un simple fichier JSON dans filesDir, écrit de façon atomique. */
-class WalletStore(context: Context) {
-    private val file = File(context.filesDir, "wallets.json")
+class WalletStore(context: Context, fileName: String = "wallets.json") {
+    private val file = File(context.filesDir, fileName)
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
 
-    fun load(): List<Wallet> = runCatching {
-        json.decodeFromString<List<Wallet>>(file.readText())
+    fun exists(): Boolean = file.exists()
+
+    fun load(): List<Wallet> {
+        val text = runCatching { file.readText() }.getOrElse { return emptyList() }
+        val elements = runCatching { json.parseToJsonElement(text).jsonArray }.getOrElse {
+            // Fichier entièrement illisible : on le garde de côté, on n'écrase rien.
+            runCatching { file.renameTo(File(file.parentFile, "${file.name}.bad")) }
+            return emptyList()
+        }
+        // Une seule entrée abîmée ne doit pas effacer les autres.
+        return elements
+            .mapNotNull { runCatching { json.decodeFromJsonElement<Wallet>(it) }.getOrNull() }
             .mapNotNull(::migrate)
-    }.getOrElse {
-        // Ne jamais écraser un fichier qu'on n'a pas su lire : on le garde de côté.
-        runCatching { file.renameTo(File(file.parentFile, "wallets.json.bad")) }
-        emptyList()
     }
 
     /** Les versions 1.0 stockaient un enum `chain` : on le convertit en identifiant de crypto. */
@@ -38,9 +46,5 @@ class WalletStore(context: Context) {
         json.encodeToString(wallets.map { WalletPayload.from(it) })
 
     /** Accepte un export fichier (liste) ou un QR code (objet unique) ; rend les entrées brutes. */
-    fun parseImport(text: String): List<WalletPayload> {
-        val trimmed = text.trim()
-        return runCatching { json.decodeFromString<List<WalletPayload>>(trimmed) }.getOrNull()
-            ?: listOf(json.decodeFromString<WalletPayload>(trimmed))
-    }
+    fun parseImport(text: String): List<WalletPayload> = WalletCodec.decodeAll(text)
 }

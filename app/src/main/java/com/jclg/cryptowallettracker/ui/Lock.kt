@@ -33,7 +33,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.jclg.cryptowallettracker.data.LockCode
 import com.jclg.cryptowallettracker.data.LockType
+import com.jclg.cryptowallettracker.data.Settings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -115,12 +117,22 @@ private fun dotAt(position: Offset, width: Float, height: Float): Int? {
         .takeIf { it >= 0 }
 }
 
+enum class UnlockResult { WRONG, REAL, DECOY }
+
+/** Vérifie le code réel, puis le code de leurre. */
+fun resolveUnlock(code: String, settings: Settings): UnlockResult = when {
+    LockCode.verify(code, settings.lockSalt, settings.lockCodeHash) -> UnlockResult.REAL
+    settings.decoyEnabled &&
+        LockCode.verify(code, settings.decoyCodeSalt, settings.decoyCodeHash) -> UnlockResult.DECOY
+    else -> UnlockResult.WRONG
+}
+
 @Composable
 fun LockScreen(
     type: LockType,
-    verify: (String) -> Boolean,
+    verify: (String) -> UnlockResult,
     onBiometric: (() -> Unit)?,
-    onUnlocked: () -> Unit,
+    onUnlocked: (UnlockResult) -> Unit,
 ) {
     Box(
         modifier = Modifier
@@ -141,7 +153,7 @@ fun LockScreen(
             }
             onBiometric?.let { unlock ->
                 OutlinedButton(onClick = unlock, modifier = Modifier.fillMaxWidth()) {
-                    Text("Empreinte ou code du téléphone")
+                    Text("Empreinte ou visage")
                 }
             }
         }
@@ -149,7 +161,7 @@ fun LockScreen(
 }
 
 @Composable
-private fun PinUnlock(verify: (String) -> Boolean, onUnlocked: () -> Unit) {
+private fun PinUnlock(verify: (String) -> UnlockResult, onUnlocked: (UnlockResult) -> Unit) {
     var code by remember { mutableStateOf("") }
     var error by remember { mutableStateOf(false) }
     var checking by remember { mutableStateOf(false) }
@@ -160,11 +172,13 @@ private fun PinUnlock(verify: (String) -> Boolean, onUnlocked: () -> Unit) {
         checking = true
         scope.launch {
             // PBKDF2 : hors du fil principal, sinon l'interface se fige.
-            val ok = withContext(Dispatchers.Default) { verify(code) }
+            val result = withContext(Dispatchers.Default) { verify(code) }
             checking = false
-            if (ok) onUnlocked() else {
+            if (result == UnlockResult.WRONG) {
                 error = true
                 code = ""
+            } else {
+                onUnlocked(result)
             }
         }
     }
@@ -193,7 +207,7 @@ private fun PinUnlock(verify: (String) -> Boolean, onUnlocked: () -> Unit) {
 }
 
 @Composable
-private fun PatternUnlock(verify: (String) -> Boolean, onUnlocked: () -> Unit) {
+private fun PatternUnlock(verify: (String) -> UnlockResult, onUnlocked: (UnlockResult) -> Unit) {
     var error by remember { mutableStateOf(false) }
     var checking by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -208,10 +222,10 @@ private fun PatternUnlock(verify: (String) -> Boolean, onUnlocked: () -> Unit) {
             checking = true
             scope.launch {
                 // PBKDF2 : hors du fil principal, sinon l'interface se fige.
-                val ok = withContext(Dispatchers.Default) { verify(pattern) }
+                val result = withContext(Dispatchers.Default) { verify(pattern) }
                 checking = false
-                error = !ok
-                if (ok) onUnlocked()
+                error = result == UnlockResult.WRONG
+                if (result != UnlockResult.WRONG) onUnlocked(result)
             }
         }
     }

@@ -1,5 +1,7 @@
 package com.jclg.cryptowallettracker.data
 
+import java.math.BigDecimal
+import java.math.BigInteger
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.text.SimpleDateFormat
@@ -49,3 +51,7 @@ fun Long.dateTimeShort(): String =
 
 fun parseIso(value: String?): Long =
     if (value == null) 0L else runCatching { Instant.parse(value).toEpochMilli() }.getOrDefault(0L)
+
+/** Entier minimal d'une chaîne (wei, lamports, satoshis…) vers l'unité affichée. */
+internal fun BigInteger.units(decimals: Int): Double =
+    BigDecimal(this).movePointLeft(decimals).toDouble()

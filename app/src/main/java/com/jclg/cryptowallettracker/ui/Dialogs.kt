@@ -141,7 +141,8 @@ fun ExportCodeDialog(onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
             Column {
                 Text(
                     "Laissez vide pour un fichier lisible. Avec un code, le fichier est chiffré " +
-                        "et le même code sera demandé à l'import.",
+                        "et le même code sera demandé à l'import. Un fichier lisible contient " +
+                        "une éventuelle clé d'affichage Monero.",
                     style = MaterialTheme.typography.bodySmall,
                 )
                 OutlinedTextField(

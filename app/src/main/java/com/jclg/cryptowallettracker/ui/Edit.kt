@@ -81,7 +81,7 @@ fun EditScreen(
     val sources = coin.sources
     val source: SourceId? = sources.firstOrNull { it.name == sourceName } ?: sources.firstOrNull()
     val addressValid = coin.matchesAddress(address)
-    val viewKeyValid = coin.symbol != "XMR" || viewKey.trim().length == 64
+    val viewKeyValid = coin.symbol != "XMR" || viewKey.trim().matches(Regex("[0-9a-fA-F]{64}"))
 
     Scaffold(
         topBar = {

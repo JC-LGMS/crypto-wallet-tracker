@@ -19,6 +19,8 @@ data class Settings(
     val priceSource: PriceSource = PriceSource.COINGECKO,
     /** Cryptos affichées sur l'accueil (avec leur mini-courbe 7 j), dans l'ordre choisi. */
     val homeCharts: List<String> = emptyList(),
+    /** Liste de marchés propre au mode leurre ; null = jamais modifiée. */
+    val decoyHomeCharts: List<String>? = null,
     /** Période de graphique mémorisée par crypto (nom de ChartRange). */
     val chartRanges: Map<String, String> = emptyMap(),
     /** Synchro de fond toutes les N heures (0 = désactivée). */
@@ -31,8 +33,12 @@ data class Settings(
     val etherscanKey: String = "",
     val beaconchainKey: String = "",
     val hideBalances: Boolean = false,
+    /** Code saisi au verrouillage pour afficher des portefeuilles factices. */
+    val decoyCodeSalt: String = "",
+    val decoyCodeHash: String = "",
 ) {
     val lockEnabled: Boolean get() = lockType != LockType.NONE && lockCodeHash.isNotBlank()
+    val decoyEnabled: Boolean get() = decoyCodeHash.isNotBlank()
 }
 
 class SettingsStore(context: Context) {

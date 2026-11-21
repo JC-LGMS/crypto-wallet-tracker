@@ -20,7 +20,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -33,6 +32,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -86,6 +87,7 @@ fun DetailScreen(
     var sourceDialog by remember { mutableStateOf(false) }
     val uriHandler = LocalUriHandler.current
     val listState = rememberLazyListState()
+    val pullState = rememberPullToRefreshState()
     val explorerUrl = coin.explorerUrl(wallet.address)
 
     LaunchedEffect(wallet.id) { onLoadHistory() }
@@ -101,7 +103,7 @@ fun DetailScreen(
                 },
                 actions = {
                     IconButton(onClick = onRefresh, enabled = balance?.loading != true) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Actualiser")
+                        RefreshIcon(balance?.loading == true, "Actualiser")
                     }
                     IconButton(onClick = onEdit) {
                         Icon(Icons.Default.Edit, contentDescription = "Modifier")
@@ -122,6 +124,17 @@ fun DetailScreen(
                 isRefreshing = balance?.loading == true,
                 onRefresh = onRefresh,
                 modifier = Modifier.fillMaxSize(),
+                state = pullState,
+                indicator = {
+                    // Visible pendant le geste, masqué dès que la synchro démarre.
+                    if (balance?.loading != true) {
+                        PullToRefreshDefaults.Indicator(
+                            state = pullState,
+                            isRefreshing = false,
+                            modifier = Modifier.align(Alignment.TopCenter),
+                        )
+                    }
+                },
             ) {
                 LazyColumn(
                     state = listState,

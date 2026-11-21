@@ -8,8 +8,7 @@ ou autre devise, historique, cours et graphiques. UI entièrement en français.
 ```powershell
 $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"   # JDK 25, testé
 .\gradlew.bat assembleDebug        # APK : app/build/outputs/apk/debug/app-debug.apk
-.\gradlew.bat exportDebugApk       # APK nommé : dist/CryptoWalletTracker-v<version>-debug.apk
-.\gradlew.bat exportReleaseApk     # APK release signé : dist/CryptoWalletTracker-v<version>-release.apk
+.\gradlew.bat assembleRelease      # APK release signé : app/build/outputs/apk/release/CryptoWalletTracker-v<version>-release.apk
 ```
 
 L'APK de release porte toujours son nom complet, même avec un simple `assembleRelease` :
@@ -150,7 +149,7 @@ Un seul module `:app`, aucune DI, aucune lib de navigation : `MainActivity.kt` g
   Le QR encode un seul payload. `c` accepte encore les anciens noms `ETHEREUM`/`DECRED`/`MONERO`.
   Un export fichier avec code est chiffré en AES-GCM et préfixé `CWT1:` (`ExportCodec`) : l'import
   détecte le préfixe et demande le code. Le QR n'est jamais chiffré.
-- Version : `val appVersionName` dans `app/build.gradle.kts` (affichée `v1.6`, centrée sur l'accueil)
+- Version : `val appVersionName` dans `app/build.gradle.kts` (affichée `v1.11`, centrée sur l'accueil)
   **et** entrée dans `app/src/main/assets/CHANGELOG.md` (les `#` Markdown sont retirés à l'affichage).
 - `versionCode` à incrémenter en même temps.
 - Montants en `Double` à l'affichage ; conversions wei/atoms/drops via `BigDecimal`.

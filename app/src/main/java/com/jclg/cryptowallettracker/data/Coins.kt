@@ -333,7 +333,7 @@ object Coins {
         name = name,
         decimals = 8,
         color = colorFor(id),
-        binance = null,
+        binance = "${symbol.uppercase()}USDT",
         sources = emptyList(),
         pattern = Regex("(?!)"),
         hint = "Cours seulement",

@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -43,7 +44,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModelProvider
 import com.jclg.cryptowallettracker.data.Coins
-import com.jclg.cryptowallettracker.data.LockCode
 import com.jclg.cryptowallettracker.data.Wallet
 import com.jclg.cryptowallettracker.ui.AboutScreen
 import com.jclg.cryptowallettracker.ui.AppTheme
@@ -59,7 +59,9 @@ import com.jclg.cryptowallettracker.ui.LockScreen
 import com.jclg.cryptowallettracker.ui.PriceScreen
 import com.jclg.cryptowallettracker.ui.SettingsScreen
 import com.jclg.cryptowallettracker.ui.UiState
+import com.jclg.cryptowallettracker.ui.UnlockResult
 import com.jclg.cryptowallettracker.ui.WalletQrDialog
+import com.jclg.cryptowallettracker.ui.resolveUnlock
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -72,6 +74,12 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        // Masque l'aperçu dans les récents (les captures manuelles restent possibles sur Android 13+).
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            setRecentsScreenshotEnabled(false)
+        } else {
+            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        }
         pendingExportCode = savedInstanceState?.getString(KEY_EXPORT_CODE).orEmpty()
         setContent {
             val state by vm.state.collectAsState()
@@ -150,7 +158,7 @@ class MainActivity : FragmentActivity() {
         }
     }
 
-    /** Vrai si le téléphone a une empreinte, un visage ou un code de déverrouillage. */
+    /** Vrai si le téléphone a une empreinte ou un visage enrôlé. */
     fun canUseDeviceLock(): Boolean =
         BiometricManager.from(this).canAuthenticate(AUTHENTICATORS) == BiometricManager.BIOMETRIC_SUCCESS
 
@@ -169,6 +177,7 @@ class MainActivity : FragmentActivity() {
         val info = BiometricPrompt.PromptInfo.Builder()
             .setTitle("Déverrouiller Crypto Wallet Tracker")
             .setAllowedAuthenticators(AUTHENTICATORS)
+            .setNegativeButtonText("Utiliser le code de l'application")
             .build()
         runCatching { prompt.authenticate(info) }
     }
@@ -178,8 +187,7 @@ class MainActivity : FragmentActivity() {
         const val RC_IMPORT = 1002
         const val RC_NOTIFICATIONS = 1003
         const val KEY_EXPORT_CODE = "pendingExportCode"
-        val AUTHENTICATORS = BiometricManager.Authenticators.BIOMETRIC_WEAK or
-            BiometricManager.Authenticators.DEVICE_CREDENTIAL
+        val AUTHENTICATORS = BiometricManager.Authenticators.BIOMETRIC_WEAK
     }
 }
 
@@ -193,10 +201,14 @@ private fun App(vm: AppViewModel, state: UiState) {
     var changelogOpen by rememberSaveable { mutableStateOf(false) }
     var currencyOpen by rememberSaveable { mutableStateOf(false) }
     var qrWallet by remember { mutableStateOf<Wallet?>(null) }
+    var decoy by rememberSaveable { mutableStateOf(false) }
 
     var unlocked by rememberSaveable { mutableStateOf(!state.settings.lockEnabled) }
     val lockEnabled by rememberUpdatedState(state.settings.lockEnabled)
-    val canUseDeviceLock = remember(activity) { activity?.canUseDeviceLock() == true }
+    var canUseDeviceLock by remember { mutableStateOf(activity?.canUseDeviceLock() == true) }
+
+    // Maintient le ViewModel sur le bon jeu de données, même après restauration du processus.
+    LaunchedEffect(decoy) { vm.setDecoyMode(decoy) }
 
     LaunchedEffect(state.message) {
         state.message?.let {
@@ -210,7 +222,8 @@ private fun App(vm: AppViewModel, state: UiState) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_START -> vm.sync(force = false)
-                Lifecycle.Event.ON_STOP -> if (lockEnabled) unlocked = false
+                Lifecycle.Event.ON_RESUME -> canUseDeviceLock = activity?.canUseDeviceLock() == true
+                Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> if (lockEnabled) unlocked = false
                 else -> Unit
             }
         }
@@ -229,15 +242,35 @@ private fun App(vm: AppViewModel, state: UiState) {
     if (state.settings.lockEnabled && !unlocked) {
         LockScreen(
             type = state.settings.lockType,
-            verify = { code ->
-                LockCode.verify(code, state.settings.lockSalt, state.settings.lockCodeHash)
-            },
+            verify = { code -> resolveUnlock(code, state.settings) },
             onBiometric = if (canUseDeviceLock) {
-                { activity?.promptDeviceUnlock { unlocked = true } }
+                {
+                    // L'empreinte ou le visage ouvre uniquement les données factices.
+                    activity?.promptDeviceUnlock {
+                        decoy = true
+                        vm.setDecoyMode(true)
+                        route = "home"
+                        qrWallet = null
+                        changelogOpen = false
+                        currencyOpen = false
+                        unlocked = true
+                    }
+                }
             } else {
                 null
             },
-            onUnlocked = { unlocked = true },
+            onUnlocked = { result ->
+                val isDecoy = result == UnlockResult.DECOY
+                decoy = isDecoy
+                vm.setDecoyMode(isDecoy)
+                if (isDecoy) {
+                    route = "home"
+                    qrWallet = null
+                    changelogOpen = false
+                    currencyOpen = false
+                }
+                unlocked = true
+            },
         )
         return
     }
@@ -257,33 +290,39 @@ private fun App(vm: AppViewModel, state: UiState) {
                     activity?.launchExport(name, code)
                 },
                 onImportFile = { activity?.launchImport() },
-                onVersionClick = { changelogOpen = true },
+                onVersionClick = { if (!decoy) changelogOpen = true },
                 onPickCurrency = { currencyOpen = true },
-                onRefreshLogos = vm::refreshLogos,
+                onRefreshLogos = { vm.refreshLogos() },
                 onToggleHidden = { vm.setHideBalances(!state.settings.hideBalances) },
-                onToggleChart = vm::toggleHomeChart,
-                onMoveChart = vm::moveChart,
-                onMoveWallet = vm::moveWallet,
-                onDeleteWallet = vm::delete,
+                onToggleChart = { vm.toggleHomeChart(it) },
+                onMoveChart = { id, delta -> vm.moveChart(id, delta) },
+                onMoveWallet = { wallet, delta -> vm.moveWallet(wallet, delta) },
+                onDeleteWallet = { wallet -> vm.delete(wallet) },
             )
 
             route == "settings" -> SettingsScreen(
                 state = state,
+                decoy = decoy,
                 onBack = { route = "home" },
                 onTheme = vm::setTheme,
                 onCurrency = vm::setCurrency,
                 onPriceSource = vm::setPriceSource,
                 onAbout = { route = "about" },
-                onVersionClick = { changelogOpen = true },
+                onVersionClick = { if (!decoy) changelogOpen = true },
                 onBackgroundSync = vm::setBackgroundSyncHours,
                 onNotify = { enabled ->
                     if (enabled) activity?.requestNotificationPermission()
                     else vm.setNotifyBalanceChange(false)
                 },
                 onLock = { type, code ->
-                    vm.setLock(type, code)
-                    unlocked = true
+                    if (decoy) {
+                        vm.setDecoyCode(code)
+                    } else {
+                        vm.setLock(type, code)
+                        unlocked = true
+                    }
                 },
+                onDecoyCode = vm::setDecoyCode,
                 onEtherscanKey = vm::setEtherscanKey,
                 onBeaconchainKey = vm::setBeaconchainKey,
             )

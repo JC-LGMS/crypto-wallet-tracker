@@ -1,6 +1,8 @@
 package com.jclg.cryptowallettracker.data
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -50,38 +52,45 @@ object Markets {
     private var ratesCache: Pair<Long, Rates>? = null
     private val chartCache = HashMap<String, Pair<Long, ChartData>>()
 
+    /** Un seul appel réseau à la fois : l'interface et le worker partagent ce cache. */
+    private val fetchMutex = Mutex()
+
     suspend fun snapshot(source: PriceSource, force: Boolean = false): MarketSnapshot =
         withContext(Dispatchers.IO) {
-            val now = System.currentTimeMillis()
-            val cached = snapshotCache
-            if (!force && cached != null && snapshotSource == source && now - cached.first < SNAPSHOT_TTL) {
-                return@withContext cached.second
-            }
-
-            val (markets, ranked) = marketsFromCoinGecko()
-            if (source == PriceSource.BINANCE) {
-                runCatching { binancePrices() }.getOrNull()?.forEach { (id, price) ->
-                    markets[id] = markets[id]?.copy(priceUsd = price) ?: Market(priceUsd = price)
+            fetchMutex.withLock {
+                val now = System.currentTimeMillis()
+                val cached = snapshotCache
+                if (!force && cached != null && snapshotSource == source && now - cached.first < SNAPSHOT_TTL) {
+                    return@withLock cached.second
                 }
-            }
 
-            // Les cryptos suivies mais hors top 100 (Monero, Decred…) ont besoin de leur cours.
-            val missing = Coins.all.filter { it.id !in markets }
-            if (missing.isNotEmpty()) {
-                runCatching { fetchMissing(missing.map { it.id }, markets) }
-            }
+                val (markets, ranked) = marketsFromCoinGecko()
+                if (source == PriceSource.BINANCE) {
+                    runCatching { binancePrices() }.getOrNull()?.forEach { (id, price) ->
+                        markets[id] = markets[id]?.copy(priceUsd = price) ?: Market(priceUsd = price)
+                    }
+                }
 
-            val snapshot = MarketSnapshot(markets, rates(markets), now, buildCatalog(ranked))
-            snapshotCache = now to snapshot
-            snapshotSource = source
-            snapshot
+                // Les cryptos suivies mais hors top 100 (Monero, Decred…) ont besoin de leur cours.
+                val missing = Coins.all.filter { it.id !in markets }
+                if (missing.isNotEmpty()) {
+                    runCatching { fetchMissing(missing.map { it.id }, markets) }
+                }
+
+                val snapshot = MarketSnapshot(markets, rates(markets), now, buildCatalog(ranked))
+                snapshotCache = now to snapshot
+                snapshotSource = source
+                snapshot
+            }
         }
 
     /** Cours des seules cryptos utiles (portefeuilles + accueil), pour la synchro de fond. */
     suspend fun quotes(ids: Collection<String>): MarketSnapshot = withContext(Dispatchers.IO) {
-        val markets = HashMap<String, Market>()
-        fetchMissing(ids, markets)
-        MarketSnapshot(markets, rates(markets), System.currentTimeMillis(), emptyList())
+        fetchMutex.withLock {
+            val markets = HashMap<String, Market>()
+            fetchMissing(ids, markets)
+            MarketSnapshot(markets, rates(markets), System.currentTimeMillis(), emptyList())
+        }
     }
 
     /** Top 100 par capitalisation : cours, logos, mini-courbes et catalogue. */

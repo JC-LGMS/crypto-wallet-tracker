@@ -67,7 +67,7 @@ fun AboutScreen(onBack: () -> Unit) {
             Spacer(Modifier.height(8.dp))
 
             Text("Les principes", style = MaterialTheme.typography.titleMedium)
-            Bullet("Aucune clé privée, aucun mot de passe : uniquement des adresses publiques.")
+            Bullet("Aucune clé de dépense, aucun mot de passe : des adresses publiques (et une clé d'affichage en lecture seule pour Monero).")
             Bullet("Les données restent sur le téléphone (fichier JSON local) ; l'application ne crée aucun compte.")
             Bullet("Les soldes sont lus dans des API publiques, sans clé, et chaque portefeuille indique sa source.")
             Bullet("Les montants sont convertis à la devise choisie à partir des cours USD et d'un taux de change.")

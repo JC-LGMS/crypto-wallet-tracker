@@ -155,9 +155,6 @@ object Balances {
 
     // ---------- Autres chaînes (API publiques) ----------
 
-    private fun BigInteger.units(decimals: Int): Double =
-        BigDecimal(this).movePointLeft(decimals).toDouble()
-
     private fun String.bigIntOrZero(): BigInteger = toBigIntegerOrNull() ?: BigInteger.ZERO
 
     private suspend fun nearBalance(address: String): Double {
@@ -333,7 +330,7 @@ object Balances {
     }
 
     private suspend fun moneroBalance(address: String, viewKey: String): Double {
-        require(viewKey.length == 64) { "clé d'affichage invalide (64 caractères hexadécimaux)" }
+        require(viewKey.matches(Regex("[0-9a-fA-F]{64}"))) { "clé d'affichage invalide (64 caractères hexadécimaux)" }
         val payload = """{"address":"$address","view_key":"${viewKey.lowercase()}","create_account":false}"""
         val text = try {
             Net.postJson("https://lws.monero.fail/get_address_info", payload)

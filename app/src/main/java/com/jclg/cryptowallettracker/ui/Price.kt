@@ -17,7 +17,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -28,6 +27,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -71,6 +72,7 @@ fun PriceScreen(
     var selected by remember(coin.id, range) { mutableStateOf<Int?>(null) }
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
+    val pullState = rememberPullToRefreshState()
 
     val currency = state.settings.currency
     val rate = state.rates.rate(currency)
@@ -118,7 +120,7 @@ fun PriceScreen(
                 },
                 actions = {
                     IconButton(onClick = { load(force = true) }, enabled = !refreshing) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Actualiser le graphique")
+                        RefreshIcon(refreshing, "Actualiser le graphique")
                     }
                 },
             )
@@ -133,6 +135,17 @@ fun PriceScreen(
             isRefreshing = refreshing,
             onRefresh = { load(force = true) },
             modifier = Modifier.fillMaxSize(),
+            state = pullState,
+            indicator = {
+                // Visible pendant le geste, masqué dès que la synchro démarre.
+                if (!refreshing) {
+                    PullToRefreshDefaults.Indicator(
+                        state = pullState,
+                        isRefreshing = false,
+                        modifier = Modifier.align(Alignment.TopCenter),
+                    )
+                }
+            },
         ) {
             Column(
                 modifier = Modifier

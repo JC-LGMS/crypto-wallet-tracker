@@ -13,18 +13,24 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -194,12 +200,22 @@ fun PriceChart(
     }
 }
 
+/** Flèche d'actualisation qui tourne pendant une synchro, même si les animations système sont à 0. */
 @Composable
-fun DottedDivider(modifier: Modifier = Modifier) {
-    Box(
-        modifier
-            .fillMaxWidth()
-            .size(1.dp)
-            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
-    )
+fun RefreshIcon(spinning: Boolean, contentDescription: String) {
+    var angle by remember { mutableStateOf(0f) }
+    LaunchedEffect(spinning) {
+        if (!spinning) {
+            angle = 0f
+            return@LaunchedEffect
+        }
+        var start = 0L
+        while (true) {
+            withFrameNanos { now ->
+                if (start == 0L) start = now
+                angle = ((now - start) / 1_000_000_000f * 360f) % 360f
+            }
+        }
+    }
+    Icon(Icons.Default.Refresh, contentDescription = contentDescription, modifier = Modifier.rotate(angle))
 }

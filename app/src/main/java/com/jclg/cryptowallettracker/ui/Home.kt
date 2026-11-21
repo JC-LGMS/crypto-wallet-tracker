@@ -27,7 +27,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -45,6 +44,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -106,6 +107,7 @@ fun HomeScreen(
     var walletMenu by remember { mutableStateOf<Wallet?>(null) }
     var pendingDelete by remember { mutableStateOf<Wallet?>(null) }
     val listState = rememberLazyListState()
+    val pullState = rememberPullToRefreshState()
     val hidden = state.settings.hideBalances
     val online = rememberOnline()
     val visibleCoins = state.settings.homeCharts.mapNotNull { id ->
@@ -122,6 +124,17 @@ fun HomeScreen(
                 isRefreshing = state.refreshing,
                 onRefresh = onRefresh,
                 modifier = Modifier.fillMaxSize(),
+                state = pullState,
+                indicator = {
+                    // Visible pendant le geste, masqué dès que la synchro démarre.
+                    if (!state.refreshing) {
+                        PullToRefreshDefaults.Indicator(
+                            state = pullState,
+                            isRefreshing = false,
+                            modifier = Modifier.align(Alignment.TopCenter),
+                        )
+                    }
+                },
             ) {
                 LazyColumn(
                     state = listState,
@@ -145,7 +158,7 @@ fun HomeScreen(
                                 )
                             }
                             IconButton(onClick = onRefresh, enabled = !state.refreshing) {
-                                Icon(Icons.Default.Refresh, contentDescription = "Actualiser")
+                                RefreshIcon(state.refreshing, "Actualiser")
                             }
                             Box {
                                 IconButton(onClick = { menuOpen = true }) {
@@ -172,7 +185,16 @@ fun HomeScreen(
                             }
                         }
                         if (state.refreshing) {
-                            LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 4.dp))
+                            val progress = state.syncProgress
+                            if (progress != null) {
+                                // Déterministe : avance même si les animations système sont à 0.
+                                LinearProgressIndicator(
+                                    progress = { progress },
+                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                )
+                            } else {
+                                LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 4.dp))
+                            }
                         }
                     }
 
@@ -266,7 +288,7 @@ fun HomeScreen(
                         }
                         if (visibleCoins.isEmpty()) {
                             Text(
-                                "Choisissez les cryptos à suivre dans les réglages.",
+                                "Touchez le + à côté de « Marchés » pour ajouter une crypto.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )

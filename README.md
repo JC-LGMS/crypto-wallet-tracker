@@ -1,7 +1,8 @@
 # Crypto Wallet Tracker
 
 Application Android pour suivre le solde de plusieurs portefeuilles crypto sans y toucher :
-seules des adresses publiques sont enregistrées, aucune clé privée.
+seules des adresses publiques sont enregistrées, aucune clé permettant de dépenser. Pour Monero,
+une clé d'affichage (lecture seule) est aussi stockée.
 
 ## Fonctionnalités
 
@@ -46,23 +47,23 @@ seules des adresses publiques sont enregistrées, aucune clé privée.
 - Appui long sur un portefeuille : le déplacer vers le haut ou le bas, ou le supprimer. Appui long sur
   un graphique : même choix ; le bouton + à côté de « Marchés » en ajoute un. L'ordre des deux listes
   est mémorisé.
-- Page À propos (en haut des réglages), changelog, version affichée `v1.6`.
+- Page À propos (en haut des réglages), changelog, version affichée `v1.11`.
 
 ## Installation
 
 APK de release signé :
 
 ```
-dist/CryptoWalletTracker-v1.6-release.apk
+app/build/outputs/apk/release/CryptoWalletTracker-v1.11-release.apk
 ```
 
 Transférer sur le téléphone et autoriser l'installation de sources inconnues. Ou :
 
 ```powershell
-& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" install -r dist\CryptoWalletTracker-v1.6-release.apk
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" install -r app\build\outputs\apk\release\CryptoWalletTracker-v1.11-release.apk
 ```
 
-Une version de debug (`...-debug.apk`) est aussi produite pour les tests.
+Une version de debug (`app/build/outputs/apk/debug/app-debug.apk`) est aussi produite pour les tests.
 
 ## Limites (liées aux chaînes et aux API publiques, pas à l'app)
 
@@ -89,13 +90,13 @@ build-tools 36.0.0 (Gradle 9.9.1, AGP 9.5.1).
 
 ```powershell
 $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
-.\gradlew.bat exportReleaseApk
+.\gradlew.bat assembleRelease
 ```
 
-L'APK nommé est copié dans `dist/CryptoWalletTracker-v1.6-release.apk` (signé, optimisé par R8).
-`exportDebugApk` produit la variante de debug, `assembleDebug` seul l'APK brut.
+L'APK est écrit dans `app/build/outputs/apk/release/CryptoWalletTracker-v1.11-release.apk` (signé,
+optimisé par R8). `assembleDebug` produit `app/build/outputs/apk/debug/app-debug.apk`.
 Les SDK 34 et build-tools 34.0.0 restent installés pour les autres projets.
 
 ## Version
 
-`1.1` — voir `app/src/main/assets/CHANGELOG.md`.
+`1.11` — voir `app/src/main/assets/CHANGELOG.md`.

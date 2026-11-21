@@ -6,7 +6,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
-val appVersionName = "1.6"
+val appVersionName = "1.11"
 
 val keystoreProperties = Properties().apply {
     val file = rootProject.file("keystore.properties")
@@ -21,7 +21,7 @@ android {
         applicationId = "com.jclg.cryptowallettracker"
         minSdk = 26
         targetSdk = 37
-        versionCode = 8
+        versionCode = 13
         versionName = appVersionName
     }
 
@@ -92,21 +92,3 @@ androidComponents {
     }
 }
 
-/** Copie l'APK de debug dans dist/ avec un nom explicite (version incluse). */
-tasks.register<Copy>("exportDebugApk") {
-    dependsOn("assembleDebug")
-    from(layout.buildDirectory.dir("outputs/apk/debug")) {
-        include("app-debug.apk")
-    }
-    into(rootProject.layout.projectDirectory.dir("dist"))
-    rename { "CryptoWalletTracker-v$appVersionName-debug.apk" }
-}
-
-/** Copie l'APK release signé dans dist/ avec un nom explicite. */
-tasks.register<Copy>("exportReleaseApk") {
-    dependsOn("assembleRelease")
-    from(layout.buildDirectory.dir("outputs/apk/release")) {
-        include("*.apk")
-    }
-    into(rootProject.layout.projectDirectory.dir("dist"))
-}

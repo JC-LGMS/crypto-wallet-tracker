@@ -26,6 +26,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -48,6 +49,7 @@ private val syncOptions = listOf(0 to "Désactivée", 6 to "6 h", 12 to "12 h", 
 @Composable
 fun SettingsScreen(
     state: UiState,
+    decoy: Boolean = false,
     onBack: () -> Unit,
     onTheme: (ThemeMode) -> Unit,
     onCurrency: (Currency) -> Unit,
@@ -57,11 +59,13 @@ fun SettingsScreen(
     onBackgroundSync: (Int) -> Unit,
     onNotify: (Boolean) -> Unit,
     onLock: (LockType, String) -> Unit,
+    onDecoyCode: (String) -> Unit,
     onEtherscanKey: (String) -> Unit,
     onBeaconchainKey: (String) -> Unit,
 ) {
     var currencyDialog by remember { mutableStateOf(false) }
     var lockSetup by remember { mutableStateOf<LockType?>(null) }
+    var lockSetupForDecoy by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
 
 
@@ -186,16 +190,63 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    LockType.entries.forEach { type ->
-                        FilterChip(
-                            selected = state.settings.lockType == type,
-                            onClick = {
-                                if (type == LockType.NONE) onLock(LockType.NONE, "")
-                                else lockSetup = type
-                            },
-                            label = { Text(type.label) },
-                        )
+                Text(
+                    "L'empreinte ou le visage est proposé sur l'écran de verrouillage si le téléphone " +
+                        "a une biométrie enrôlée dans Android. Sinon, seul le code de " +
+                        "l'application est demandé.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (!decoy) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        LockType.entries.forEach { type ->
+                            FilterChip(
+                                selected = state.settings.lockType == type,
+                                onClick = {
+                                    if (type == LockType.NONE) onLock(LockType.NONE, "")
+                                    else {
+                                        lockSetupForDecoy = false
+                                        lockSetup = type
+                                    }
+                                },
+                                label = { Text(type.label) },
+                            )
+                        }
+                    }
+                }
+                Surface(
+                    onClick = {
+                        lockSetupForDecoy = true
+                        lockSetup = state.settings.lockType
+                    },
+                    shape = RoundedCornerShape(14.dp),
+                    tonalElevation = 1.dp,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                if (decoy) "Modifier le code" else "Code de leurre",
+                                style = MaterialTheme.typography.bodyLarge,
+                            )
+                            Text(
+                                if (decoy) {
+                                    "Appuyez pour changer"
+                                } else if (state.settings.decoyEnabled) {
+                                    "Défini — affiche 4 portefeuilles et marchés factices"
+                                } else {
+                                    "Aucun"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
+                    }
+                }
+                if (!decoy && state.settings.decoyEnabled) {
+                    TextButton(onClick = { onDecoyCode("") }) {
+                        Text("Désactiver le code de leurre")
                     }
                 }
 
@@ -258,7 +309,7 @@ fun SettingsScreen(
             type = type,
             onConfirm = { code ->
                 lockSetup = null
-                onLock(type, code)
+                if (lockSetupForDecoy) onDecoyCode(code) else onLock(type, code)
             },
             onDismiss = { lockSetup = null },
         )
