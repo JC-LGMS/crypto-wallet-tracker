@@ -102,11 +102,14 @@ private fun CameraPreview(onResult: (String) -> Unit) {
     val currentResult = rememberUpdatedState(onResult)
     val executor = remember { Executors.newSingleThreadExecutor() }
     val done = remember { AtomicBoolean(false) }
+    val closed = remember { AtomicBoolean(false) }
     val lastScan = remember { AtomicLong(0) }
     val provider = remember { arrayOfNulls<ProcessCameraProvider>(1) }
 
     DisposableEffect(Unit) {
         onDispose {
+            // La caméra peut finir de s'initialiser après la fermeture : on ne la branche plus.
+            closed.set(true)
             provider[0]?.unbindAll()
             executor.shutdown()
         }
@@ -120,6 +123,7 @@ private fun CameraPreview(onResult: (String) -> Unit) {
                 val future = ProcessCameraProvider.getInstance(ctx)
                 future.addListener({
                     val camera = runCatching { future.get() }.getOrNull() ?: return@addListener
+                    if (closed.get()) return@addListener
                     provider[0] = camera
                     val preview = Preview.Builder().build()
                     preview.setSurfaceProvider(surfaceProvider)
@@ -152,6 +156,7 @@ private fun CameraPreview(onResult: (String) -> Unit) {
                         }
                     }
                     runCatching {
+                        if (closed.get()) return@runCatching
                         camera.unbindAll()
                         camera.bindToLifecycle(
                             lifecycleOwner,

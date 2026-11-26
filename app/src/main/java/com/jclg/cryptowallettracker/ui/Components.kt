@@ -8,6 +8,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
@@ -15,9 +16,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -57,13 +61,14 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.roundToInt
 
 /** Logos récupérés depuis CoinGecko, conservés en mémoire jusqu'à un rafraîchissement manuel. */
 object LogoLoader {
     private val client = OkHttpClient()
-    private val cache = HashMap<String, ImageBitmap>()
-    private val failed = HashSet<String>()
+    private val cache = ConcurrentHashMap<String, ImageBitmap>()
+    private val failed = ConcurrentHashMap.newKeySet<String>()
     private val versionState = MutableStateFlow(0)
     val version: StateFlow<Int> = versionState.asStateFlow()
 
@@ -218,4 +223,17 @@ fun RefreshIcon(spinning: Boolean, contentDescription: String) {
         }
     }
     Icon(Icons.Default.Refresh, contentDescription = contentDescription, modifier = Modifier.rotate(angle))
+}
+
+/** Indicateur de pull-to-refresh : visible pendant le geste, masqué dès que la synchro démarre. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BoxScope.PullIndicator(state: PullToRefreshState, refreshing: Boolean) {
+    if (!refreshing) {
+        PullToRefreshDefaults.Indicator(
+            state = state,
+            isRefreshing = false,
+            modifier = Modifier.align(Alignment.TopCenter),
+        )
+    }
 }

@@ -27,11 +27,11 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -70,6 +70,7 @@ fun PriceScreen(
     var refreshing by remember(coin.id) { mutableStateOf(false) }
     var error by remember(coin.id) { mutableStateOf<String?>(null) }
     var selected by remember(coin.id, range) { mutableStateOf<Int?>(null) }
+    var requestId by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
     val pullState = rememberPullToRefreshState()
@@ -78,9 +79,13 @@ fun PriceScreen(
     val rate = state.rates.rate(currency)
 
     fun load(force: Boolean) {
+        val request = ++requestId
         scope.launch {
             if (data == null) loading = true else refreshing = true
-            runCatching { Markets.chart(coin, range, force) }
+            val result = runCatching { Markets.chart(coin, range, force) }
+            // Une réponse d'une autre période, arrivée en retard, ne doit rien écraser.
+            if (request != requestId) return@launch
+            result
                 .onSuccess {
                     data = it
                     error = null
@@ -136,16 +141,7 @@ fun PriceScreen(
             onRefresh = { load(force = true) },
             modifier = Modifier.fillMaxSize(),
             state = pullState,
-            indicator = {
-                // Visible pendant le geste, masqué dès que la synchro démarre.
-                if (!refreshing) {
-                    PullToRefreshDefaults.Indicator(
-                        state = pullState,
-                        isRefreshing = false,
-                        modifier = Modifier.align(Alignment.TopCenter),
-                    )
-                }
-            },
+            indicator = { PullIndicator(pullState, refreshing) },
         ) {
             Column(
                 modifier = Modifier

@@ -30,9 +30,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.jclg.cryptowallettracker.data.LockAttempts
 import com.jclg.cryptowallettracker.data.LockCode
 import com.jclg.cryptowallettracker.data.LockType
 import com.jclg.cryptowallettracker.data.Settings
@@ -162,22 +164,31 @@ fun LockScreen(
 
 @Composable
 private fun PinUnlock(verify: (String) -> UnlockResult, onUnlocked: (UnlockResult) -> Unit) {
+    val context = LocalContext.current
     var code by remember { mutableStateOf("") }
     var error by remember { mutableStateOf(false) }
+    var blocked by remember { mutableStateOf<String?>(null) }
     var checking by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     fun submit() {
         if (checking) return
+        val wait = LockAttempts.remainingMs(context)
+        if (wait > 0) {
+            blocked = "Trop d'essais — réessayez dans ${(wait + 999) / 1000} s"
+            return
+        }
         checking = true
         scope.launch {
             // PBKDF2 : hors du fil principal, sinon l'interface se fige.
             val result = withContext(Dispatchers.Default) { verify(code) }
             checking = false
             if (result == UnlockResult.WRONG) {
+                LockAttempts.fail(context)
                 error = true
                 code = ""
             } else {
+                LockAttempts.reset(context)
                 onUnlocked(result)
             }
         }
@@ -188,14 +199,19 @@ private fun PinUnlock(verify: (String) -> UnlockResult, onUnlocked: (UnlockResul
         onValueChange = {
             code = it.filter(Char::isDigit).take(8)
             error = false
+            blocked = null
         },
         label = { Text("Code PIN") },
         singleLine = true,
-        isError = error,
-        supportingText = if (error) {
-            { Text("Code incorrect") }
-        } else {
-            null
+        isError = error || blocked != null,
+        supportingText = when {
+            blocked != null -> {
+                { Text(blocked.orEmpty()) }
+            }
+            error -> {
+                { Text("Code incorrect") }
+            }
+            else -> null
         },
         visualTransformation = PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
@@ -208,24 +224,38 @@ private fun PinUnlock(verify: (String) -> UnlockResult, onUnlocked: (UnlockResul
 
 @Composable
 private fun PatternUnlock(verify: (String) -> UnlockResult, onUnlocked: (UnlockResult) -> Unit) {
+    val context = LocalContext.current
     var error by remember { mutableStateOf(false) }
+    var blocked by remember { mutableStateOf<String?>(null) }
     var checking by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     Text(
-        if (error) "Schéma incorrect" else "Dessinez votre schéma",
+        blocked ?: if (error) "Schéma incorrect" else "Dessinez votre schéma",
         style = MaterialTheme.typography.bodyMedium,
-        color = if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+        color = if (error || blocked != null) MaterialTheme.colorScheme.error
+        else MaterialTheme.colorScheme.onSurfaceVariant,
     )
     PatternInput(Modifier.fillMaxWidth().aspectRatio(1f)) { pattern ->
         if (!checking) {
-            checking = true
-            scope.launch {
-                // PBKDF2 : hors du fil principal, sinon l'interface se fige.
-                val result = withContext(Dispatchers.Default) { verify(pattern) }
-                checking = false
-                error = result == UnlockResult.WRONG
-                if (result != UnlockResult.WRONG) onUnlocked(result)
+            val wait = LockAttempts.remainingMs(context)
+            if (wait > 0) {
+                blocked = "Trop d'essais — réessayez dans ${(wait + 999) / 1000} s"
+            } else {
+                checking = true
+                scope.launch {
+                    // PBKDF2 : hors du fil principal, sinon l'interface se fige.
+                    val result = withContext(Dispatchers.Default) { verify(pattern) }
+                    checking = false
+                    if (result == UnlockResult.WRONG) {
+                        LockAttempts.fail(context)
+                        blocked = null
+                        error = true
+                    } else {
+                        LockAttempts.reset(context)
+                        onUnlocked(result)
+                    }
+                }
             }
         }
     }

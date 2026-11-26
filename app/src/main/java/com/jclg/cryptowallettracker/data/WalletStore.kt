@@ -7,18 +7,25 @@ import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonArray
 import java.io.File
 
-/** Stockage local : un simple fichier JSON dans filesDir, écrit de façon atomique. */
-class WalletStore(context: Context, fileName: String = "wallets.json") {
-    private val file = File(context.filesDir, fileName)
+/** Stockage local : un simple fichier JSON, écrit de façon atomique. */
+class WalletStore(private val file: File) {
+    constructor(context: Context, fileName: String = "wallets.json") : this(File(context.filesDir, fileName))
+
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
+
+    /** Fichier `.bad` créé quand le JSON était illisible : rien n'est affiché, il faut le dire. */
+    var badCopy: String? = null
+        private set
 
     fun exists(): Boolean = file.exists()
 
     fun load(): List<Wallet> {
+        badCopy = null
         val text = runCatching { file.readText() }.getOrElse { return emptyList() }
         val elements = runCatching { json.parseToJsonElement(text).jsonArray }.getOrElse {
             // Fichier entièrement illisible : on le garde de côté, on n'écrase rien.
-            runCatching { file.renameTo(File(file.parentFile, "${file.name}.bad")) }
+            val bad = File(file.parentFile, "${file.name}.bad")
+            if (runCatching { file.renameTo(bad) }.getOrDefault(false)) badCopy = bad.name
             return emptyList()
         }
         // Une seule entrée abîmée ne doit pas effacer les autres.
@@ -35,7 +42,7 @@ class WalletStore(context: Context, fileName: String = "wallets.json") {
     }
 
     fun save(wallets: List<Wallet>) {
-        val tmp = File(file.parentFile, "wallets.json.tmp")
+        val tmp = File(file.parentFile, "${file.name}.tmp")
         tmp.writeText(json.encodeToString(wallets))
         if (tmp.renameTo(file)) return
         file.writeText(tmp.readText())

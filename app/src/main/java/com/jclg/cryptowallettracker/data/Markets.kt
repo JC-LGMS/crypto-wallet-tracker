@@ -12,6 +12,7 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import java.util.concurrent.ConcurrentHashMap
 
 enum class ChartRange(val label: String, val days: Int?, val long: Boolean) {
     H1("1 h", 1, false),
@@ -46,11 +47,16 @@ object Markets {
     private const val RATES_TTL = 3_600_000L
     private const val SHORT_CHART_TTL = 3_600_000L
     private const val LONG_CHART_TTL = 24 * 3_600_000L
+    /** Graphiques gardés en mémoire ; au-delà, le plus ancien est évincé. */
+    private const val CHART_CACHE_SIZE = 100
 
     private var snapshotCache: Pair<Long, MarketSnapshot>? = null
     private var snapshotSource: PriceSource? = null
     private var ratesCache: Pair<Long, Rates>? = null
-    private val chartCache = HashMap<String, Pair<Long, ChartData>>()
+    private val chartCache = ConcurrentHashMap<String, Pair<Long, ChartData>>()
+
+    /** Devises fiat à taux de change (les cryptos viennent des cours). */
+    private val FIAT = Currency.entries.filterNot { it.crypto }
 
     /** Un seul appel réseau à la fois : l'interface et le worker partagent ce cache. */
     private val fetchMutex = Mutex()
@@ -66,7 +72,7 @@ object Markets {
 
                 val (markets, ranked) = marketsFromCoinGecko()
                 if (source == PriceSource.BINANCE) {
-                    runCatching { binancePrices() }.getOrNull()?.forEach { (id, price) ->
+                    runCatching { binancePrices(ranked) }.getOrNull()?.forEach { (id, price) ->
                         markets[id] = markets[id]?.copy(priceUsd = price) ?: Market(priceUsd = price)
                     }
                 }
@@ -143,8 +149,8 @@ object Markets {
     }
 
     /** Prix USDT ≈ USD ; CoinGecko complète les cryptos absentes de Binance. */
-    private suspend fun binancePrices(): Map<String, Double> {
-        val pairs = Coins.all.mapNotNull { coin -> coin.binance?.let { coin.id to it } }
+    private suspend fun binancePrices(ranked: List<Coin>): Map<String, Double> {
+        val pairs = ranked.mapNotNull { coin -> coin.binance?.let { coin.id to it } }
         val text = Net.get("https://api.binance.com/api/v3/ticker/price")
         val byPair = HashMap<String, Double>()
         json.parseToJsonElement(text).jsonArray.forEach { element ->
@@ -156,34 +162,63 @@ object Markets {
         return pairs.mapNotNull { (id, pair) -> byPair[pair]?.let { id to it } }.toMap()
     }
 
-    /** Taux dérivés du prix du bitcoin par devise (1 requête, mise en cache 1 h). */
+    /**
+     * Taux complets pour toutes les devises, ou exception : jamais une devise convertie à 1,0
+     * sans le dire. CoinGecko d'abord, la BCE comble les devises manquantes, BTC/ETH viennent
+     * des cours connus.
+     */
     private suspend fun rates(markets: Map<String, Market>): Rates {
         val now = System.currentTimeMillis()
         ratesCache?.let { (at, cached) -> if (now - at < RATES_TTL) return cached }
 
         return runCatching {
-            val text = Net.get(
-                "https://api.coingecko.com/api/v3/simple/price" +
-                    "?ids=bitcoin,ethereum&vs_currencies=usd,eur,gbp,jpy,cny",
-            )
-            val root = json.parseToJsonElement(text).jsonObject
-            val btc = root["bitcoin"]?.jsonObject ?: error("taux indisponibles")
-            val usd = btc["usd"]?.jsonPrimitive?.doubleOrNull ?: error("taux indisponibles")
-            val ethUsd = markets["ethereum"]?.priceUsd
-                ?: root["ethereum"]?.jsonObject?.get("usd")?.jsonPrimitive?.doubleOrNull
-
             val byCurrency = HashMap<Currency, Double>()
             byCurrency[Currency.USD] = 1.0
-            btc["eur"]?.jsonPrimitive?.doubleOrNull?.let { byCurrency[Currency.EUR] = it / usd }
-            btc["gbp"]?.jsonPrimitive?.doubleOrNull?.let { byCurrency[Currency.GBP] = it / usd }
-            btc["jpy"]?.jsonPrimitive?.doubleOrNull?.let { byCurrency[Currency.JPY] = it / usd }
-            btc["cny"]?.jsonPrimitive?.doubleOrNull?.let { byCurrency[Currency.CNY] = it / usd }
-            if (usd > 0) byCurrency[Currency.BTC] = 1.0 / usd
-            if (ethUsd != null && ethUsd > 0) byCurrency[Currency.ETH] = 1.0 / ethUsd
+            byCurrency.putAll(runCatching { coinGeckoFiatRates() }.getOrDefault(emptyMap()))
+            completeFiatFromBce(byCurrency)
+            listOf("bitcoin" to Currency.BTC, "ethereum" to Currency.ETH).forEach { (id, currency) ->
+                val price = markets[id]?.priceUsd
+                if (price != null && price > 0) byCurrency[currency] = 1.0 / price
+                else ratesCache?.second?.byCurrency?.get(currency)?.let { byCurrency[currency] = it }
+            }
+            val missing = Currency.entries.filter { it !in byCurrency }
+            if (missing.isNotEmpty()) error("taux indisponibles : ${missing.joinToString { it.code }}")
             Rates(byCurrency)
-        }.getOrElse { error ->
-            ratesCache?.second ?: throw error
-        }.also { ratesCache = now to it }
+        }.getOrElse { error -> ratesCache?.second ?: throw error }
+            .also { ratesCache = now to it }
+    }
+
+    /** Fiats déduits des cotations BTC de CoinGecko ; les devises absentes sont simplement omises. */
+    private suspend fun coinGeckoFiatRates(): Map<Currency, Double> {
+        val text = Net.get(
+            "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd,eur,gbp,jpy,cny",
+        )
+        val btc = json.parseToJsonElement(text).jsonObject["bitcoin"]?.jsonObject
+            ?: error("taux indisponibles")
+        // Un prix USD nul rendrait tous les taux infinis.
+        val usd = btc["usd"]?.jsonPrimitive?.doubleOrNull?.takeIf { it > 0 }
+            ?: error("taux indisponibles")
+        return FIAT.mapNotNull { currency ->
+            btc[currency.code.lowercase()]?.jsonPrimitive?.doubleOrNull
+                ?.takeIf { it > 0 }
+                ?.let { currency to it / usd }
+        }.toMap()
+    }
+
+    /** Repli : taux de référence de la BCE (Frankfurter, sans clé) pour les devises manquantes. */
+    private suspend fun completeFiatFromBce(byCurrency: MutableMap<Currency, Double>) {
+        val missing = FIAT.filter { it !in byCurrency }
+        if (missing.isEmpty()) return
+        val text = Net.get(
+            "https://api.frankfurter.app/latest?from=USD&to=" + missing.joinToString(",") { it.code },
+        )
+        val fetched = json.parseToJsonElement(text).jsonObject["rates"]?.jsonObject
+            ?: error("taux indisponibles")
+        missing.forEach { currency ->
+            fetched[currency.code]?.jsonPrimitive?.doubleOrNull
+                ?.takeIf { it > 0 }
+                ?.let { byCurrency[currency] = it }
+        }
     }
 
     /** Historique en USD (converti à l'affichage), avec cache par crypto et période. */
@@ -197,7 +232,9 @@ object Markets {
             }
 
             val fetched = fetchChart(coin, range)
-            if (chartCache.size >= 8) chartCache.clear()
+            if (!chartCache.containsKey(key) && chartCache.size >= CHART_CACHE_SIZE) {
+                chartCache.entries.minByOrNull { it.value.first }?.let { chartCache.remove(it.key) }
+            }
             chartCache[key] = now to fetched
             fetched
         }

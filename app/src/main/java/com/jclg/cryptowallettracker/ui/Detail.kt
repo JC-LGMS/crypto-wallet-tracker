@@ -32,7 +32,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -90,7 +89,7 @@ fun DetailScreen(
     val pullState = rememberPullToRefreshState()
     val explorerUrl = coin.explorerUrl(wallet.address)
 
-    LaunchedEffect(wallet.id) { onLoadHistory() }
+    LaunchedEffect(wallet.id, wallet.coinId, wallet.address) { onLoadHistory() }
 
     Scaffold(
         topBar = {
@@ -125,16 +124,7 @@ fun DetailScreen(
                 onRefresh = onRefresh,
                 modifier = Modifier.fillMaxSize(),
                 state = pullState,
-                indicator = {
-                    // Visible pendant le geste, masqué dès que la synchro démarre.
-                    if (balance?.loading != true) {
-                        PullToRefreshDefaults.Indicator(
-                            state = pullState,
-                            isRefreshing = false,
-                            modifier = Modifier.align(Alignment.TopCenter),
-                        )
-                    }
-                },
+                indicator = { PullIndicator(pullState, balance?.loading == true) },
             ) {
                 LazyColumn(
                     state = listState,

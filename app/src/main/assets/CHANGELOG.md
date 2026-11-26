@@ -1,5 +1,48 @@
 # Journal des modifications
 
+## 1.13 - 2026-11-26
+
+- Mode leurre : les 4 portefeuilles utilisent désormais de vraies adresses publiques, avec leurs
+  soldes réels lus sur la chaîne (plus aucune valeur inventée) ; les anciennes adresses factices sont
+  remplacées automatiquement.
+- Mode leurre : les portefeuilles factices se rafraîchissent et affichent leur historique comme les
+  autres.
+- Verrou : après la fermeture du processus par Android, le code est redemandé (avant, l'application
+  pouvait se rouvrir déverrouillée).
+- Portefeuille : changer la crypto efface le solde et les transactions de l'ancienne.
+- Taux de change : une devise manquante est signalée au lieu d'être convertie à 1,0 ; la BCE complète
+  les devises absentes de CoinGecko.
+- Graphiques : une réponse arrivée en retard ne remplace plus la période affichée.
+- Import : une adresse base58 (Solana, XRP, TRON) n'est plus confondue avec la même adresse écrite
+  dans une autre casse.
+- Fichier de portefeuilles illisible : l'application prévient et nomme la copie `.bad` conservée.
+- Cours : la source Binance couvre aussi les cryptos du top 100.
+- Un seul sélecteur de crypto pour l'accueil et l'ajout, avec recherche.
+- Solana : le solde est de nouveau lu (le RPC public refusait l'agent « navigateur »).
+- Sécurité : le verrou freine les essais répétés (5 essais, puis une attente doublante jusqu'à
+  15 minutes).
+- Mode leurre : plus aucune notification de solde réel ne peut apparaître pendant une session leurre.
+- Portefeuille : changer d'adresse, de source ou de clé d'affichage efface aussi le solde et les
+  transactions de l'ancienne adresse.
+- Cours : éditer ou importer un portefeuille ne relance plus la synchronisation complète.
+- Graphiques : le cache garde 100 graphiques et n'oublie que le plus ancien.
+- Recherche : le sélecteur de crypto trouve aussi par symbole (BTC, XMR…).
+- Robustesse : cache des logos sûr en accès concurrent ; fichier chiffré corrompu signalé en français.
+
+## 1.12 - 2026-11-22
+
+- Mode leurre : les marchés et les cours affichés sont les vrais ; seuls les portefeuilles sont
+  factices.
+- Mode leurre : les vrais portefeuilles ne peuvent plus apparaître une fraction de seconde après
+  une fermeture forcée, et l'historique des portefeuilles factices n'est plus effacé en changeant
+  de mode.
+- Taux de change : repli sur les taux de la Banque centrale européenne (Frankfurter) quand
+  CoinGecko ne répond pas ; un cours nul ne produit plus de taux infinis.
+- Réglages : une préférence abîmée ne désactive plus le verrou, la sauvegarde précédente est
+  restaurée.
+- Soldes : un portefeuille dont la première synchro a échoué est réessayé, au lieu d'attendre 24 h.
+- Import : déduplication immédiate, plus rapide sur les gros fichiers.
+
 ## 1.11 - 2026-11-22
 
 - Confidentialité : l'aperçu de l'application dans les récents ne montre plus les portefeuilles

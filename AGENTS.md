@@ -71,7 +71,8 @@ Un seul module `:app`, aucune DI, aucune lib de navigation : `MainActivity.kt` g
   retrie jamais les portefeuilles par nom.
 - Plusieurs portefeuilles peuvent partager la même crypto ; l'import déduplique sur `coinId + adresse`.
 - Tous les montants passent par `UiState.price()` (USD × taux) ; la devise est globale (`Settings`).
-- Les cours sont normalisés en USD ; les taux viennent des cotations BTC en EUR/GBP/JPY/CNY.
+- Les cours sont normalisés en USD ; les taux viennent des cotations BTC en EUR/GBP/JPY/CNY, avec
+  repli sur les taux de la BCE (`api.frankfurter.app`) si CoinGecko échoue.
 - `Settings.chartRanges` mémorise la période de graphique par crypto.
 - Chaque source affichée est accompagnée de sa **date de dernière synchro** (accueil, fiche
   portefeuille, graphique) ; le pull-to-refresh est disponible sur l'accueil, la fiche et le graphique.
@@ -114,7 +115,8 @@ Un seul module `:app`, aucune DI, aucune lib de navigation : `MainActivity.kt` g
 
 ## Sources de données (clés facultatives)
 
-- Cours : CoinGecko `coins/markets` (logos + mini-courbes inclus) ; `simple/price` pour les taux.
+- Cours : CoinGecko `coins/markets` (logos + mini-courbes inclus) ; `simple/price` pour les taux,
+  `api.frankfurter.app` (BCE) en secours.
   Alternative Binance `ticker/price`.
 - Graphiques : CoinGecko `market_chart` (≤ 365 j), Binance `klines` (2 ans/5 ans/max),
   Kraken `OHLC` en secours (XMR, DCR).
@@ -149,7 +151,7 @@ Un seul module `:app`, aucune DI, aucune lib de navigation : `MainActivity.kt` g
   Le QR encode un seul payload. `c` accepte encore les anciens noms `ETHEREUM`/`DECRED`/`MONERO`.
   Un export fichier avec code est chiffré en AES-GCM et préfixé `CWT1:` (`ExportCodec`) : l'import
   détecte le préfixe et demande le code. Le QR n'est jamais chiffré.
-- Version : `val appVersionName` dans `app/build.gradle.kts` (affichée `v1.11`, centrée sur l'accueil)
+- Version : `val appVersionName` dans `app/build.gradle.kts` (affichée `v1.13`, centrée sur l'accueil)
   **et** entrée dans `app/src/main/assets/CHANGELOG.md` (les `#` Markdown sont retirés à l'affichage).
 - `versionCode` à incrémenter en même temps.
 - Montants en `Double` à l'affichage ; conversions wei/atoms/drops via `BigDecimal`.

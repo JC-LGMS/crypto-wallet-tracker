@@ -25,7 +25,11 @@ object ExportCodec {
 
     /** @throws IllegalArgumentException si le code est faux ou le fichier abîmé. */
     fun decrypt(text: String, code: String): String {
-        val body = Base64.getDecoder().decode(text.trim().removePrefix(PREFIX))
+        val body = try {
+            Base64.getDecoder().decode(text.trim().removePrefix(PREFIX))
+        } catch (e: IllegalArgumentException) {
+            throw IllegalArgumentException("fichier protégé illisible")
+        }
         require(body.size > SALT_BYTES + IV_BYTES) { "fichier protégé illisible" }
         val salt = body.copyOfRange(0, SALT_BYTES)
         val iv = body.copyOfRange(SALT_BYTES, SALT_BYTES + IV_BYTES)

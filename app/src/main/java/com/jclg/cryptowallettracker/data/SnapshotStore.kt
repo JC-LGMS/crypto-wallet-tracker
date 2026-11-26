@@ -19,8 +19,9 @@ data class BalanceSnapshot(
     val quotesUpdatedAt: Long? = null,
 )
 
-class SnapshotStore(context: Context, fileName: String = "snapshot.json") {
-    private val file = File(context.filesDir, fileName)
+class SnapshotStore(private val file: File) {
+    constructor(context: Context, fileName: String = "snapshot.json") : this(File(context.filesDir, fileName))
+
     private val json = Json { ignoreUnknownKeys = true }
 
     fun load(): BalanceSnapshot = synchronized(LOCK) { read() }

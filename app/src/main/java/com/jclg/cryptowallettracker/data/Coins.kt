@@ -12,10 +12,6 @@ enum class Currency(val code: String, val label: String, val symbol: String, val
     BTC("BTC", "Bitcoin", "BTC", crypto = true),
     ETH("ETH", "Ether", "ETH", crypto = true),
     ;
-
-    companion object {
-        fun fromCode(code: String?): Currency = entries.firstOrNull { it.code == code } ?: EUR
-    }
 }
 
 @Serializable

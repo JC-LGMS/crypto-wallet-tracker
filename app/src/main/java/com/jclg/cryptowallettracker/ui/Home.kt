@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -38,13 +37,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -110,9 +107,8 @@ fun HomeScreen(
     val pullState = rememberPullToRefreshState()
     val hidden = state.settings.hideBalances
     val online = rememberOnline()
-    val visibleCoins = state.settings.homeCharts.mapNotNull { id ->
-        state.catalog.firstOrNull { it.id == id }
-    }
+    val catalogById = remember(state.catalog) { state.catalog.associateBy { it.id } }
+    val visibleCoins = state.settings.homeCharts.mapNotNull(catalogById::get)
 
     Scaffold { padding ->
         Box(
@@ -125,16 +121,7 @@ fun HomeScreen(
                 onRefresh = onRefresh,
                 modifier = Modifier.fillMaxSize(),
                 state = pullState,
-                indicator = {
-                    // Visible pendant le geste, masqué dès que la synchro démarre.
-                    if (!state.refreshing) {
-                        PullToRefreshDefaults.Indicator(
-                            state = pullState,
-                            isRefreshing = false,
-                            modifier = Modifier.align(Alignment.TopCenter),
-                        )
-                    }
-                },
+                indicator = { PullIndicator(pullState, state.refreshing) },
             ) {
                 LazyColumn(
                     state = listState,
@@ -341,12 +328,13 @@ fun HomeScreen(
     }
 
     if (chartPicker) {
-        ChartPickerDialog(
-            coins = state.catalog,
-            selected = state.settings.homeCharts,
-            onPick = { coinId ->
+        CoinPickerDialog(
+            title = "Ajouter un graphique",
+            coins = state.catalog.filter { it.id !in state.settings.homeCharts },
+            images = state.markets.mapValues { it.value.image },
+            onPick = {
                 chartPicker = false
-                onToggleChart(coinId)
+                onToggleChart(it.id)
             },
             onDismiss = { chartPicker = false },
         )
@@ -478,64 +466,6 @@ private fun LongPressMenu(
             }
         }
     }
-}
-
-@Composable
-private fun ChartPickerDialog(
-    coins: List<Coin>,
-    selected: Collection<String>,
-    onPick: (String) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var query by remember { mutableStateOf("") }
-    val available = coins
-        .filter { it.id !in selected && it.name.contains(query.trim(), ignoreCase = true) }
-        .sortedBy { it.name }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { DialogTitle("Ajouter un graphique", onDismiss) },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    label = { Text("Rechercher une crypto") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                when {
-                    available.isEmpty() -> Text(
-                        if (coins.size == selected.size) "Toutes les cryptos sont déjà sur l'accueil."
-                        else "Aucune crypto trouvée.",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(top = 8.dp),
-                    )
-                    else -> LazyColumn(Modifier.heightIn(max = 360.dp)) {
-                        items(available, key = { it.id }) { coin ->
-                            Row(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onPick(coin.id) }
-                                    .padding(vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                CoinLogo(coin, null, 26.dp)
-                                Spacer(Modifier.width(10.dp))
-                                Text(
-                                    "${coin.name} (${coin.symbol})",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {},
-    )
 }
 
 @Composable

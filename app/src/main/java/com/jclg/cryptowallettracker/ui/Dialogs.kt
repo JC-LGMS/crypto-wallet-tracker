@@ -2,12 +2,18 @@ package com.jclg.cryptowallettracker.ui
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -34,12 +40,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import com.jclg.cryptowallettracker.BuildConfig
+import com.jclg.cryptowallettracker.data.Coin
 import com.jclg.cryptowallettracker.data.Currency
 import com.jclg.cryptowallettracker.data.Wallet
 import com.jclg.cryptowallettracker.data.WalletPayload
@@ -61,6 +69,80 @@ fun DialogTitle(text: String, onClose: () -> Unit) {
             Icon(Icons.Default.Close, contentDescription = "Fermer")
         }
     }
+}
+
+/** Sélecteur de crypto commun à l'accueil (marchés) et à la fiche d'ajout. */
+@Composable
+fun CoinPickerDialog(
+    title: String,
+    coins: List<Coin>,
+    images: Map<String, String?> = emptyMap(),
+    onPick: (Coin) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var query by remember { mutableStateOf("") }
+    val available = coins
+        .filter {
+            it.name.contains(query.trim(), ignoreCase = true) ||
+                it.symbol.contains(query.trim(), ignoreCase = true)
+        }
+        .sortedBy { it.name }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { DialogTitle(title, onDismiss) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    label = { Text("Rechercher une crypto") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                when {
+                    coins.isEmpty() -> Text(
+                        "Toutes les cryptos sont déjà ajoutées.",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                    available.isEmpty() -> Text(
+                        "Aucune crypto trouvée.",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                    else -> LazyColumn(Modifier.heightIn(max = 430.dp)) {
+                        items(available, key = { it.id }) { coin ->
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onPick(coin) }
+                                    .padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                CoinLogo(coin, images[coin.id], 30.dp)
+                                Spacer(Modifier.width(10.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        "${coin.name} (${coin.symbol})",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                    )
+                                    Text(
+                                        coin.capabilities,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+    )
 }
 
 @Composable

@@ -9,22 +9,26 @@ import java.util.concurrent.TimeUnit
 /** Petit client HTTP partagé ; toujours appelé depuis Dispatchers.IO. */
 object Net {
     private val JSON = "application/json".toMediaType()
-    private const val USER_AGENT =
+    // CoinGecko refuse les clients non navigateur ; les RPC publics refusent un agent de
+    // navigateur (Solana répond 403). L'agent dépend donc de l'hôte.
+    private const val BROWSER_UA =
         "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) " +
             "Chrome/131.0.0.0 Mobile Safari/537.36"
+    private const val APP_UA = "CryptoWalletTracker (Android)"
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
         .build()
 
-    fun get(url: String): String = execute(Request.Builder().url(url).get())
+    fun get(url: String): String = execute(Request.Builder().url(url).get(), url)
 
     fun postJson(url: String, body: String): String =
-        execute(Request.Builder().url(url).post(body.toRequestBody(JSON)))
+        execute(Request.Builder().url(url).post(body.toRequestBody(JSON)), url)
 
-    private fun execute(builder: Request.Builder): String {
-        val request = builder.header("User-Agent", USER_AGENT).build()
+    private fun execute(builder: Request.Builder, url: String): String {
+        val agent = if (url.contains("coingecko.com")) BROWSER_UA else APP_UA
+        val request = builder.header("User-Agent", agent).build()
         client.newCall(request).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) throw ApiException(response.code, body)

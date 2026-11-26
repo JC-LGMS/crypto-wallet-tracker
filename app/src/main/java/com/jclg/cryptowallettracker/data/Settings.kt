@@ -45,15 +45,35 @@ class SettingsStore(context: Context) {
     private val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
+    /**
+     * La sauvegarde précédente sert de secours : sans elle, un JSON abîmé rendrait
+     * les réglages par défaut et le verrou disparaîtrait sans prévenir.
+     */
     fun load(): Settings = runCatching {
-        json.decodeFromString<Settings>(prefs.getString(KEY, "")!!)
+        decode(prefs.getString(KEY, "").orEmpty())
+    }.recoverCatching {
+        decode(prefs.getString(KEY_BACKUP, "").orEmpty())
     }.getOrDefault(Settings())
 
-    fun save(settings: Settings) {
-        prefs.edit().putString(KEY, json.encodeToString(settings)).apply()
+    /** Vrai pendant une session « leurre » : le worker de fond ne doit rien notifier de visible. */
+    fun decoySession(): Boolean = prefs.getBoolean(KEY_DECOY_SESSION, false)
+
+    fun setDecoySession(active: Boolean) {
+        prefs.edit().putBoolean(KEY_DECOY_SESSION, active).apply()
     }
+
+    fun save(settings: Settings) {
+        val previous = prefs.getString(KEY, null)
+        val editor = prefs.edit()
+        if (previous != null) editor.putString(KEY_BACKUP, previous)
+        editor.putString(KEY, json.encodeToString(settings)).apply()
+    }
+
+    private fun decode(text: String): Settings = json.decodeFromString(text)
 
     private companion object {
         const val KEY = "settings"
+        const val KEY_BACKUP = "settings.backup"
+        const val KEY_DECOY_SESSION = "decoy.session"
     }
 }

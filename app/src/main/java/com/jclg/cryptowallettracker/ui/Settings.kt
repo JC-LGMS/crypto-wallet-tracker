@@ -233,7 +233,7 @@ fun SettingsScreen(
                                 if (decoy) {
                                     "Appuyez pour changer"
                                 } else if (state.settings.decoyEnabled) {
-                                    "Défini — affiche 4 portefeuilles et marchés factices"
+                                    "Défini — ouvre 4 portefeuilles factices"
                                 } else {
                                     "Aucun"
                                 },

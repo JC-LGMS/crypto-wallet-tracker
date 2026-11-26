@@ -39,7 +39,8 @@ class BalanceSyncWorker(
 
     override suspend fun doWork(): Result {
         val context = applicationContext
-        val settings = SettingsStore(context).load()
+        val settingsStore = SettingsStore(context)
+        val settings = settingsStore.load()
         val wallets = WalletStore(context).load()
         if (wallets.isEmpty()) return Result.success()
 
@@ -87,8 +88,9 @@ class BalanceSyncWorker(
             ),
         )
 
-        if (changes.isNotEmpty()) {
-            if (settings.notifyBalanceChange) notifyChanges(context, changes)
+        // En session leurre, une notification révélerait les vrais portefeuilles.
+        if (changes.isNotEmpty() && settings.notifyBalanceChange && !settingsStore.decoySession()) {
+            notifyChanges(context, changes)
         }
         return Result.success()
     }

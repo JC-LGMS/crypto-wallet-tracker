@@ -12,6 +12,13 @@ une clé d'affichage (lecture seule) est aussi stockée.
   AAVE, PEPE…).
 - Plusieurs portefeuilles par crypto, avec nom et commentaire ; les adresses restent sur la fiche.
 - **Verrouillage** de l'application par PIN ou schéma dessiné, propre à l'application.
+- **Mode leurre** : un second code au verrouillage ouvre 4 portefeuilles factices (adresses publiques
+  réelles, soldes lus sur la chaîne), avec leurs propres marchés, historique, import et export.
+  L'empreinte ou le visage n'ouvre que ce jeu factice ; le vrai code ouvre les vrais portefeuilles.
+  Rien n'indique le mode leurre dans l'interface, et la version affichée n'y ouvre pas le changelog.
+  Les fichiers sont séparés (`decoy-wallets.json`, `decoy-snapshot.json`) : les vrais ne sont jamais
+  écrits. C'est un masquage, pas un chiffrement : les vrais fichiers restent lisibles avec un accès
+  root ou une sauvegarde.
 - **Soldes masquables** d'un appui sur l'icône œil (total, portefeuilles, fiche).
 - **Synchro en arrière-plan** toutes les 6, 12 ou 24 h (même application fermée) et **notification** en
   cas de changement de solde.
@@ -47,20 +54,20 @@ une clé d'affichage (lecture seule) est aussi stockée.
 - Appui long sur un portefeuille : le déplacer vers le haut ou le bas, ou le supprimer. Appui long sur
   un graphique : même choix ; le bouton + à côté de « Marchés » en ajoute un. L'ordre des deux listes
   est mémorisé.
-- Page À propos (en haut des réglages), changelog, version affichée `v1.11`.
+- Page À propos (en haut des réglages), changelog, version affichée `v1.13`.
 
 ## Installation
 
 APK de release signé :
 
 ```
-app/build/outputs/apk/release/CryptoWalletTracker-v1.11-release.apk
+app/build/outputs/apk/release/CryptoWalletTracker-v1.13-release.apk
 ```
 
 Transférer sur le téléphone et autoriser l'installation de sources inconnues. Ou :
 
 ```powershell
-& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" install -r app\build\outputs\apk\release\CryptoWalletTracker-v1.11-release.apk
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" install -r app\build\outputs\apk\release\CryptoWalletTracker-v1.13-release.apk
 ```
 
 Une version de debug (`app/build/outputs/apk/debug/app-debug.apk`) est aussi produite pour les tests.
@@ -93,10 +100,10 @@ $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 .\gradlew.bat assembleRelease
 ```
 
-L'APK est écrit dans `app/build/outputs/apk/release/CryptoWalletTracker-v1.11-release.apk` (signé,
+L'APK est écrit dans `app/build/outputs/apk/release/CryptoWalletTracker-v1.13-release.apk` (signé,
 optimisé par R8). `assembleDebug` produit `app/build/outputs/apk/debug/app-debug.apk`.
 Les SDK 34 et build-tools 34.0.0 restent installés pour les autres projets.
 
 ## Version
 
-`1.11` — voir `app/src/main/assets/CHANGELOG.md`.
+`1.13` — voir `app/src/main/assets/CHANGELOG.md`.

@@ -70,6 +70,8 @@ class MainActivity : FragmentActivity() {
 
     private val vm: AppViewModel by lazy { ViewModelProvider(this)[AppViewModel::class.java] }
     private var pendingExportCode = ""
+    /** Vrai si la session affichait les données factices ; restauré avant le premier rendu. */
+    var decoySession = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -81,6 +83,10 @@ class MainActivity : FragmentActivity() {
             window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
         }
         pendingExportCode = savedInstanceState?.getString(KEY_EXPORT_CODE).orEmpty()
+        // Le ViewModel est neuf après une mort du processus : on le met sur le leurre
+        // avant setContent, sinon les vrais portefeuilles apparaissent une fraction de seconde.
+        decoySession = savedInstanceState?.getBoolean(KEY_DECOY) == true
+        if (decoySession) vm.setDecoyMode(true)
         setContent {
             val state by vm.state.collectAsState()
             AppTheme(state.settings.theme) {
@@ -93,6 +99,7 @@ class MainActivity : FragmentActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putString(KEY_EXPORT_CODE, pendingExportCode)
+        outState.putBoolean(KEY_DECOY, decoySession)
     }
 
     /** Export JSON : requestCode fixe (les ActivityResultLauncher de Compose provoquaient un crash). */
@@ -187,6 +194,7 @@ class MainActivity : FragmentActivity() {
         const val RC_IMPORT = 1002
         const val RC_NOTIFICATIONS = 1003
         const val KEY_EXPORT_CODE = "pendingExportCode"
+        const val KEY_DECOY = "decoySession"
         val AUTHENTICATORS = BiometricManager.Authenticators.BIOMETRIC_WEAK
     }
 }
@@ -201,14 +209,19 @@ private fun App(vm: AppViewModel, state: UiState) {
     var changelogOpen by rememberSaveable { mutableStateOf(false) }
     var currencyOpen by rememberSaveable { mutableStateOf(false) }
     var qrWallet by remember { mutableStateOf<Wallet?>(null) }
-    var decoy by rememberSaveable { mutableStateOf(false) }
+    var decoy by rememberSaveable { mutableStateOf(activity?.decoySession == true) }
 
-    var unlocked by rememberSaveable { mutableStateOf(!state.settings.lockEnabled) }
+    // Pas de rememberSaveable : après une mort du processus, le code est redemandé.
+    var unlocked by remember { mutableStateOf(vm.unlocked) }
+    LaunchedEffect(unlocked) { vm.unlocked = unlocked }
     val lockEnabled by rememberUpdatedState(state.settings.lockEnabled)
     var canUseDeviceLock by remember { mutableStateOf(activity?.canUseDeviceLock() == true) }
 
     // Maintient le ViewModel sur le bon jeu de données, même après restauration du processus.
-    LaunchedEffect(decoy) { vm.setDecoyMode(decoy) }
+    LaunchedEffect(decoy) {
+        vm.setDecoyMode(decoy)
+        activity?.decoySession = decoy
+    }
 
     LaunchedEffect(state.message) {
         state.message?.let {
@@ -443,6 +456,15 @@ private fun App(vm: AppViewModel, state: UiState) {
                     }
                 }
             },
+            confirmButton = {},
+        )
+    }
+
+    if (state.storageError != null) {
+        AlertDialog(
+            onDismissRequest = vm::clearStorageError,
+            title = { DialogTitle("Portefeuilles illisibles", vm::clearStorageError) },
+            text = { Text(state.storageError) },
             confirmButton = {},
         )
     }

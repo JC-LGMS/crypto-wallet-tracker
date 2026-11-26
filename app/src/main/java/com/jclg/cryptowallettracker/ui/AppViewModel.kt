@@ -18,6 +18,7 @@ import com.jclg.cryptowallettracker.data.HistoryState
 import com.jclg.cryptowallettracker.data.LockCode
 import com.jclg.cryptowallettracker.data.LockType
 import com.jclg.cryptowallettracker.data.Market
+import com.jclg.cryptowallettracker.data.MarketSnapshot
 import com.jclg.cryptowallettracker.data.Markets
 import com.jclg.cryptowallettracker.data.PriceSource
 import com.jclg.cryptowallettracker.data.Rates
@@ -64,6 +65,8 @@ data class UiState(
     val quotesFromCache: Boolean = false,
     /** Résultat détaillé du dernier import. */
     val importReport: ImportReport? = null,
+    /** Fichier de portefeuilles illisible : copie `.bad` conservée, rien n'est affiché. */
+    val storageError: String? = null,
 ) {
     fun price(coinId: String): Double? =
         markets[coinId]?.priceUsd?.let { it * rates.rate(settings.currency) }
@@ -84,8 +87,6 @@ data class UiState(
         return TotalSummary(sum, incomplete)
     }
 
-    val loading: Boolean get() = refreshing
-
     /** Avancement réel, utilisable même quand les animations système sont désactivées. */
     val syncProgress: Float?
         get() = if (syncTotal > 0) (syncDone.toFloat() / syncTotal).coerceIn(0f, 1f) else null
@@ -96,6 +97,12 @@ data class TotalSummary(val value: Double, val incomplete: Boolean)
 /** Portefeuilles importés, et détail de ceux qui ont été écartés (avec la raison). */
 data class ImportReport(val added: Int, val rejected: List<String>)
 
+/** Clé de déduplication : la casse ne compte que pour les adresses hexadécimales. */
+internal fun addressKey(wallet: Wallet): String {
+    val address = if (wallet.address.startsWith("0x")) wallet.address.lowercase() else wallet.address
+    return "${wallet.coinId}|$address"
+}
+
 class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val store = WalletStore(app)
     private val settingsStore = SettingsStore(app)
@@ -105,6 +112,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private var activeStore = store
     private var activeSnapshotStore = snapshotStore
     private var decoyMode = false
+    /** Session déverrouillée : survit à une rotation, pas à la mort du processus. */
+    var unlocked = false
     private val _state = MutableStateFlow(
         UiState(wallets = store.load(), settings = settingsStore.load()),
     )
@@ -115,6 +124,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private var pendingImport: String? = null
 
     init {
+        // Le marqueur de session leurre ne survit pas à la mort du processus.
+        settingsStore.setDecoySession(false)
         val saved = snapshotStore.load()
         if (saved.balances.isNotEmpty() || saved.markets.isNotEmpty()) {
             _state.update { s ->
@@ -129,6 +140,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         SyncScheduler.apply(app, _state.value.settings.backgroundSyncHours)
+        storageWarning(store)?.let { warning -> _state.update { it.copy(storageError = warning) } }
         sync()
     }
 
@@ -139,44 +151,35 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setDecoyMode(enabled: Boolean) {
         if (decoyMode == enabled) return
         decoyMode = enabled
-        val now = System.currentTimeMillis()
+        settingsStore.setDecoySession(enabled)
         if (enabled) {
             activeStore = decoyStore
             activeSnapshotStore = decoySnapshotStore
-            val wallets = if (decoyStore.exists()) {
-                decoyStore.load()
-            } else {
-                Decoy.wallets.also { decoyStore.save(it) }
-            }
+            val stored = if (decoyStore.exists()) decoyStore.load() else emptyList()
+            // Versions ≤ 1.11 : adresses factices, remplacées une fois par les vraies.
+            val wallets = stored.filterNot(Decoy::isLegacy).ifEmpty { Decoy.wallets }
+            val changed = wallets != stored
+            if (changed) decoyStore.save(wallets)
             val saved = decoySnapshotStore.load()
-            val seeded = wallets.associate { wallet ->
-                val entry = saved.balances[wallet.id]
-                wallet.id to Balance(
-                    amount = entry?.amount ?: Decoy.amounts[wallet.id],
-                    updatedAt = entry?.updatedAt ?: now,
-                )
-            }
-            val real = _state.value
-            val markets = wallets.fold(real.markets) { acc, wallet ->
-                if (wallet.coinId in acc) acc
-                else acc + (wallet.coinId to Market(priceUsd = Decoy.prices[wallet.coinId]))
-            }
-            val stored = settingsStore.load()
+            val settings = settingsStore.load()
             _state.update { s ->
                 s.copy(
                     wallets = wallets,
-                    settings = stored.copy(
-                        homeCharts = stored.decoyHomeCharts ?: Decoy.wallets.map { it.coinId },
+                    settings = settings.copy(
+                        homeCharts = settings.decoyHomeCharts ?: Decoy.wallets.map { it.coinId },
                     ),
-                    balances = s.balances + seeded,
-                    history = s.history + wallets.associate { it.id to HistoryState(updatedAt = now) },
-                    markets = markets,
+                    // Soldes relus si les portefeuilles ont changé : ceux de l'ancienne liste
+                    // ne correspondent plus aux adresses.
+                    balances = s.balances + (if (changed) emptyMap() else saved.balances.mapValues { (_, entry) ->
+                        Balance(amount = entry.amount, updatedAt = entry.updatedAt)
+                    }),
                     refreshing = false,
                     message = null,
                     syncErrors = emptyList(),
                     importLocked = false,
                     importError = null,
                     importReport = null,
+                    storageError = storageWarning(decoyStore),
                 )
             }
         } else {
@@ -192,6 +195,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     importLocked = false,
                     importError = null,
                     importReport = null,
+                    storageError = storageWarning(store),
                 )
             }
         }
@@ -210,9 +214,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
         val quotesStale = force || snapshot.quotesUpdatedAt.let { it == null || now - it > QUOTES_TTL }
         val toRefresh = wallets.filter { wallet ->
-            wallet.id !in Decoy.ids &&
-                snapshot.balances[wallet.id]?.loading != true &&
-                (force || snapshot.balances[wallet.id]?.updatedAt.let { it == null || now - it > WALLET_TTL })
+            snapshot.balances[wallet.id].let { balance ->
+                // Un solde absent (échec précédent) doit être retenté sans attendre 24 h.
+                balance?.loading != true && (force || balance?.amount == null ||
+                    balance?.updatedAt.let { it == null || now - it > WALLET_TTL })
+            }
         }
         if (!quotesStale && toRefresh.isEmpty()) return
 
@@ -256,7 +262,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Pull-to-refresh d'un portefeuille : solde + historique. */
     fun refreshWallet(wallet: Wallet, force: Boolean = true) {
-        if (wallet.id in Decoy.ids) return
         val failures = Collections.synchronizedList(mutableListOf<String>())
         _state.update { s ->
             s.copy(
@@ -288,23 +293,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         quotesLoading = true
         val source = _state.value.settings.priceSource
         runCatching { Markets.snapshot(source, force) }
-            .onSuccess { snapshot ->
-                _state.update {
-                    it.copy(
-                        markets = snapshot.markets,
-                        rates = snapshot.rates,
-                        quotesUpdatedAt = snapshot.fetchedAt,
-                        catalog = snapshot.catalog,
-                        quotesFromCache = false,
-                    )
-                }
-            }
+            .onSuccess { applyQuotes(it) }
             .onFailure { e ->
                 failures.add("Cours, variations et mini-courbes — ${source.label} (${e.friendly()})")
                 // Cours en cache : on les garde et on le signale sur l'accueil.
                 _state.update { if (it.markets.isEmpty()) it else it.copy(quotesFromCache = true) }
             }
         quotesLoading = false
+    }
+
+    private fun applyQuotes(snapshot: MarketSnapshot) {
+        _state.update {
+            it.copy(
+                markets = snapshot.markets,
+                rates = snapshot.rates,
+                quotesUpdatedAt = snapshot.fetchedAt,
+                catalog = snapshot.catalog,
+                quotesFromCache = false,
+            )
+        }
     }
 
     private suspend fun fetchBalance(wallet: Wallet, failures: MutableList<String>) {
@@ -338,16 +345,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun refreshLogos() {
         viewModelScope.launch {
             runCatching { Markets.snapshot(_state.value.settings.priceSource, force = true) }
-                .onSuccess { snapshot ->
-                    _state.update {
-                        it.copy(
-                            markets = snapshot.markets,
-                            rates = snapshot.rates,
-                            quotesUpdatedAt = snapshot.fetchedAt,
-                            catalog = snapshot.catalog,
-                            quotesFromCache = false,
-                        )
-                    }
+                .onSuccess {
+                    applyQuotes(it)
                     LogoLoader.clear()
                 }
                 .onFailure { e ->
@@ -361,8 +360,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun upsert(wallet: Wallet) {
         val list = _state.value.wallets
         val index = list.indexOfFirst { it.id == wallet.id }
+        // Changer de crypto, d'adresse ou de source invalide le solde et les transactions de l'ancienne.
+        if (index >= 0) {
+            val old = list[index]
+            val identityChanged = old.coinId != wallet.coinId || old.address != wallet.address ||
+                old.sourceOrFirst != wallet.sourceOrFirst || old.viewKey != wallet.viewKey
+            if (identityChanged) {
+                _state.update {
+                    it.copy(balances = it.balances - wallet.id, history = it.history - wallet.id)
+                }
+            }
+        }
         persist(if (index >= 0) list.toMutableList().also { it[index] = wallet } else list + wallet)
-        sync(force = true)
+        refreshWallet(wallet)
     }
 
     fun delete(wallet: Wallet) {
@@ -393,7 +403,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun loadHistory(wallet: Wallet, force: Boolean = false) {
-        if (wallet.id in Decoy.ids) return
         val coin = wallet.coin ?: return
         val source = wallet.sourceOrFirst
         val current = _state.value.history[wallet.id]
@@ -564,6 +573,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         runCatching { activeStore.parseImport(text) }
             .onSuccess { payloads ->
                 val existing = _state.value.wallets
+                val seen = existing.mapTo(HashSet()) { addressKey(it) }
                 val added = mutableListOf<Wallet>()
                 val rejected = mutableListOf<String>()
                 payloads.forEach { payload ->
@@ -574,9 +584,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         wallet.address.isBlank() -> "adresse vide"
                         coin.sources.isEmpty() -> "crypto sans source de solde"
                         !coin.matchesAddress(wallet.address) -> "adresse ${coin.symbol} invalide"
-                        (existing + added).any {
-                            it.coinId == wallet.coinId && it.address.equals(wallet.address, true)
-                        } -> "déjà présent"
+                        !seen.add(addressKey(wallet)) -> "déjà présent"
                         else -> null
                     }
                     if (wallet != null && reason == null) {
@@ -588,7 +596,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 if (added.isNotEmpty()) {
                     persist(existing + added)
-                    sync(force = true)
+                    sync()
                 }
                 _state.update { it.copy(importReport = ImportReport(added.size, rejected)) }
             }
@@ -597,6 +605,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearImportReport() {
         _state.update { it.copy(importReport = null) }
+    }
+
+    fun clearStorageError() {
+        _state.update { it.copy(storageError = null) }
+    }
+
+    private fun storageWarning(walletStore: WalletStore): String? = walletStore.badCopy?.let { name ->
+        "Le fichier de portefeuilles était illisible. Une copie est conservée sous $name ; " +
+            "les portefeuilles qu'il contenait ne sont plus affichés."
     }
 
     fun exportTo(uri: Uri, code: String = "") {
