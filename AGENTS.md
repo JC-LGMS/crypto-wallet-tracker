@@ -20,8 +20,9 @@ mises à jour. Les règles R8 indispensables à kotlinx.serialization **et à Wo
 `app/proguard-rules.pro` : sans elles l'app plante au démarrage
 (`Failed to create an instance of class androidx.work.impl.WorkDatabase`).
 
-JDK 17+ suffit. `.\gradlew.bat test` lance les tests unitaires des formats (export chiffré,
-verrou, import, adresses). Pas de lint. Vérification = build + installation sur l'émulateur
+JDK 17+ suffit. `.\gradlew.bat test` lance les 13 tests unitaires (export chiffré,
+verrou, import, adresses, fusion du snapshot). Pas de lint.
+Vérification = build + installation sur l'émulateur
 (`%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe`), puis
 `adb install -r ...`, `adb shell am force-stop com.jclg.cryptowallettracker`.
 
@@ -79,9 +80,13 @@ Un seul module `:app`, aucune DI, aucune lib de navigation : `MainActivity.kt` g
 - Le top 100 vient de CoinGecko à chaque synchro des cours : `UiState.catalog` est la seule liste à
   utiliser pour les marchés et les réglages (ne pas coder 100 cryptos en dur).
 - Fonctions transverses : `Settings.hideBalances` (icône œil sur le total), `Settings.lockType`
-  (`PIN` ou `PATTERN` propre à l'application, haché en PBKDF2 dans `LockCode` ; le code du téléphone
-  et l'empreinte ne sont plus utilisés), `Settings.backgroundSyncHours` +
+  (`PIN` ou `PATTERN` propre à l'application, haché en PBKDF2 dans `LockCode` ; 5 essais libres puis
+  attente doublante jusqu'à 15 min via `LockAttempts` ; le code du téléphone et l'empreinte ne sont
+  plus utilisés), `Settings.backgroundSyncHours` +
   `Settings.notifyBalanceChange` (WorkManager), lien explorateur via `Coin.explorerUrl(adresse)`.
+- Mode leurre : `Decoy` (4 adresses réelles) et fichiers séparés `decoy-wallets.json` /
+  `decoy-snapshot.json` ; `setDecoyMode` pose `decoy.session` (remis à zéro au démarrage) et
+  `BalanceSyncWorker` ne notifie jamais pendant une session leurre.
 - L'historique est plafonné (20 tx Blockscout/Bitcoin, 5 Decred) ; `HistoryState.hasMore` affiche
   « Seules les N transactions les plus récentes sont affichées » quand la source en contient plus.
 - L'ajout d'un portefeuille se fait par saisie de l'adresse ou scan d'un QR (`ui/QrScanner.kt`) ; la
@@ -104,6 +109,8 @@ Un seul module `:app`, aucune DI, aucune lib de navigation : `MainActivity.kt` g
     page de graphique.
   - logos : gardés toute la session ; le menu « Mettre à jour les logos » force le rechargement
     (`LogoLoader.clear()`).
+  - graphiques : 100 entrées en mémoire ; au-delà, la plus ancienne est évincée (jamais de
+    `clear()` global).
 - Les anciennes données ne sont jamais effacées au début d'une synchro (`Balance.updatedAt`,
   `HistoryState.updatedAt`, `ChartData.fetchedAt`).
 - Tout échec conserve l'ancienne valeur et alimente `UiState.syncErrors` avec la donnée **et** la
@@ -151,7 +158,7 @@ Un seul module `:app`, aucune DI, aucune lib de navigation : `MainActivity.kt` g
   Le QR encode un seul payload. `c` accepte encore les anciens noms `ETHEREUM`/`DECRED`/`MONERO`.
   Un export fichier avec code est chiffré en AES-GCM et préfixé `CWT1:` (`ExportCodec`) : l'import
   détecte le préfixe et demande le code. Le QR n'est jamais chiffré.
-- Version : `val appVersionName` dans `app/build.gradle.kts` (affichée `v1.13`, centrée sur l'accueil)
+- Version : `val appVersionName` dans `app/build.gradle.kts` (affichée `v1.14`, centrée sur l'accueil)
   **et** entrée dans `app/src/main/assets/CHANGELOG.md` (les `#` Markdown sont retirés à l'affichage).
 - `versionCode` à incrémenter en même temps.
 - Montants en `Double` à l'affichage ; conversions wei/atoms/drops via `BigDecimal`.
