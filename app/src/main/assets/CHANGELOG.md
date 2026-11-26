@@ -1,6 +1,18 @@
 # Journal des modifications
 
-## 1.13 - 2026-11-26
+## 1.14 - 2026-11-27
+
+- Sécurité : le verrou freine les essais répétés (5 essais, puis une attente doublante jusqu'à
+  15 minutes).
+- Mode leurre : plus aucune notification de solde réel ne peut apparaître pendant une session leurre.
+- Portefeuille : changer d'adresse, de source ou de clé d'affichage efface aussi le solde et les
+  transactions de l'ancienne adresse.
+- Cours : éditer ou importer un portefeuille ne relance plus la synchronisation complète.
+- Graphiques : le cache garde 100 graphiques et n'oublie que le plus ancien.
+- Recherche : le sélecteur de crypto trouve aussi par symbole (BTC, XMR…).
+- Robustesse : cache des logos sûr en accès concurrent ; fichier chiffré corrompu signalé en français.
+
+## 1.13 - 2026-11-23
 
 - Mode leurre : les 4 portefeuilles utilisent désormais de vraies adresses publiques, avec leurs
   soldes réels lus sur la chaîne (plus aucune valeur inventée) ; les anciennes adresses factices sont
@@ -19,15 +31,6 @@
 - Cours : la source Binance couvre aussi les cryptos du top 100.
 - Un seul sélecteur de crypto pour l'accueil et l'ajout, avec recherche.
 - Solana : le solde est de nouveau lu (le RPC public refusait l'agent « navigateur »).
-- Sécurité : le verrou freine les essais répétés (5 essais, puis une attente doublante jusqu'à
-  15 minutes).
-- Mode leurre : plus aucune notification de solde réel ne peut apparaître pendant une session leurre.
-- Portefeuille : changer d'adresse, de source ou de clé d'affichage efface aussi le solde et les
-  transactions de l'ancienne adresse.
-- Cours : éditer ou importer un portefeuille ne relance plus la synchronisation complète.
-- Graphiques : le cache garde 100 graphiques et n'oublie que le plus ancien.
-- Recherche : le sélecteur de crypto trouve aussi par symbole (BTC, XMR…).
-- Robustesse : cache des logos sûr en accès concurrent ; fichier chiffré corrompu signalé en français.
 
 ## 1.12 - 2026-11-22
 
